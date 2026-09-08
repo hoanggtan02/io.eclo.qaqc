@@ -1,0 +1,78 @@
+﻿<div class="container-fluid mt-4">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0 bg-transparent p-0">
+                <li class="breadcrumb-item small">
+                    <a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
+                </li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+        <div class="filter-search">
+            <div class="d-flex align-items-center justify-content-end">
+                <div class="dropdown">
+                    <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill small d-flex align-items-center"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                        <i class="ti ti-filter fs-5 me-2"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                        style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                        <div class="fw-semibold py-2 px-3">
+                            <?=$jatbi->lang("Điều kiện lọc")?>
+                        </div>
+                        <hr class="border-secondary border-opacity-50 my-2">
+                        <div class="px-3">
+                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Loại ngọc")?></label>
+                            <select name="pearl" class="form-select rounded-4 filter-input">
+                                <?php foreach($pearl_filter_options as $opt){ ?>
+                                <option value="<?=$opt['value']?>"><?=$opt['text']?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <hr class="border-secondary border-opacity-50 my-2">
+                        <div class="px-3 py-2 text-end w-100">
+                            <button type="button"
+                                class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                            <button type="button"
+                                class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <div class="alert alert-info border-0 rounded-4 small mb-3">
+                <i class="ti ti-info-circle me-1"></i>
+                <?=$jatbi->lang("Kho Chế tác (SX): Nơi thực hiện phối đai vàng bạc, định giá và chuyển đổi ngọc Akoya từ đơn vị kg sang số viên thành phẩm đạt QAQC trước khi chuyển sang Kho Thành Phẩm.")?>
+            </div>
+            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                data-state-save='true' style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="code" data-searchable="true" data-orderable="true" class="text-nowrap"
+                            data-visible="true" data-class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
+                        <th data-name="pearl_name" data-orderable="false" class="" data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Chi tiết ngọc")?></th>
+                        <th data-name="weight_kg" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Kg tồn chế tác")?></th>
+                        <th data-name="amount" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Số viên hiện tại")?></th>
+                        <th data-name="date" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-nowrap"><?=$jatbi->lang("Ngày vào kho")?></th>
+                        <th data-name="action" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Thao tác")?></th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>

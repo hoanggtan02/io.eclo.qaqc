@@ -1,0 +1,147 @@
+﻿<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold text-body mb-1">
+                    <?=$title?>
+                </h5>
+                <div class="small text-secondary mb-3">
+                    <?=$jatbi->lang("Mã lô")?>: <span class="fw-semibold text-body"><?=htmlspecialchars($batch['code'])?></span>
+                    · <span class="badge bg-primary"><?=$jatbi->lang("Phân bổ xuống Cửa hàng & Quầy Kho Thành Phẩm")?></span>
+                </div>
+
+                <div class="alert alert-primary border-0 rounded-4 small mb-3">
+                    <i class="ti ti-building-store me-1"></i>
+                    <?=$jatbi->lang("Kho chế tác là kho chung. Tại đây thành phẩm sau QAQC sẽ được phân bổ xuống Cửa hàng và Quầy cụ thể của Kho Thành Phẩm bán lẻ để sẵn sàng xuất bán hoặc trưng bày quầy.")?>
+                </div>
+
+                <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-export-products">
+                    
+                    <div class="border rounded-4 p-3 mb-3 bg-light bg-opacity-50">
+                        <h6 class="fw-bold text-body mb-2"><?=$jatbi->lang("Thông tin sản phẩm hàng hóa")?></h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Mã sản phẩm (SKU/Barcode)")?> <span class="text-danger">*</span></label>
+                                <input type="text" name="product_code" class="form-control rounded-4 fw-bold"
+                                    value="SP-<?=$batch['code']?>-<?=date('Hi')?>" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tên sản phẩm thành phẩm")?> <span class="text-danger">*</span></label>
+                                <input type="text" name="product_name" class="form-control rounded-4"
+                                    placeholder="<?=$jatbi->lang("Ví dụ: Mặt dây chuyền ngọc trai Akoya đai vàng 18K...")?>" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Danh mục sản phẩm")?></label>
+                                <select name="category_id" class="form-select rounded-4">
+                                    <?php foreach ($categorys as $cat) { ?>
+                                    <option value="<?=$cat['id']?>"><?=$cat['name']?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên thành phẩm")?> <span class="text-danger">*</span></label>
+                                <input type="number" step="1" min="1" max="<?=$total_amount?>" name="amount" class="form-control rounded-4 fw-bold"
+                                    value="<?=$total_amount?>" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Đơn vị tính")?></label>
+                                <select name="unit_id" class="form-select rounded-4">
+                                    <?php foreach ($units as $u) { ?>
+                                    <option value="<?=$u['id']?>"><?=$u['name']?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Khối lượng (kg)")?></label>
+                                <input type="number" step="0.0001" min="0" name="weight_kg" class="form-control rounded-4"
+                                    value="<?=$total_weight_kg > 0 ? $total_weight_kg : ''?>">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Giá vốn ước tính (VNĐ)")?></label>
+                                <input type="number" step="1000" min="0" name="cost" class="form-control rounded-4" placeholder="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Giá niêm yết bán lẻ (VNĐ)")?></label>
+                                <input type="number" step="1000" min="0" name="price" class="form-control rounded-4" placeholder="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border rounded-4 p-3 mb-3">
+                        <h6 class="fw-bold text-body mb-2"><?=$jatbi->lang("Nơi tiếp nhận (Cửa hàng & Quầy)")?> <span class="text-danger">*</span></h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Cửa hàng / Chi nhánh")?> <span class="text-danger">*</span></label>
+                                <select name="store_id" id="select-store" class="form-select rounded-4" required>
+                                    <option value=""><?=$jatbi->lang("Chọn cửa hàng...")?></option>
+                                    <?php foreach ($stores as $st) { ?>
+                                    <option value="<?=$st['id']?>"><?=$st['name']?></option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Quầy tiếp nhận tại cửa hàng")?> <span class="text-danger">*</span></label>
+                                <select name="branch_id" id="select-branch" class="form-select rounded-4" required>
+                                    <option value=""><?=$jatbi->lang("Vui lòng chọn cửa hàng trước")?></option>
+                                </select>
+                            </div>
+                            <div class="col-12 mt-2">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Ghi chú phiếu phân bổ kho")?></label>
+                                <input type="text" name="notes" class="form-control rounded-4" placeholder="<?=$jatbi->lang("Ví dụ: Phân bổ hàng mới lên quầy trưng bày...")?>">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-12 mt-3">
+                        <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold"
+                            data-action="submit" data-alert="true" data-load="this">
+                            <i class="ti ti-truck-delivery me-1"></i>
+                            <?=$jatbi->lang("Xác nhận phân bổ xuống Cửa hàng & Quầy Kho Thành Phẩm")?>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var allBranches = <?=json_encode($branches ?? [])?>;
+    var storeSelect = document.getElementById('select-store');
+    var branchSelect = document.getElementById('select-branch');
+    if (!storeSelect || !branchSelect) return;
+
+    storeSelect.addEventListener('change', function () {
+        var storeId = this.value;
+        branchSelect.innerHTML = '<option value=""><?=$jatbi->lang("Chọn quầy...")?></option>';
+        if (!storeId) {
+            branchSelect.innerHTML = '<option value=""><?=$jatbi->lang("Vui lòng chọn cửa hàng trước")?></option>';
+            return;
+        }
+
+        var matched = allBranches.filter(function (b) {
+            return String(b.stores) === String(storeId);
+        });
+
+        if (matched.length === 0) {
+            branchSelect.innerHTML = '<option value="0"><?=$jatbi->lang("Cửa hàng này chưa có quầy (Nhận tại Kho chính)")?></option>';
+        } else {
+            matched.forEach(function (b) {
+                var opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                branchSelect.appendChild(opt);
+            });
+        }
+    });
+})();
+</script>
