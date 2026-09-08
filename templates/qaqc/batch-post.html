@@ -1,0 +1,252 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold text-body mb-3">
+                    <?=$title?>
+                </h5>
+                <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-batch">
+                    <div class="row">
+                        <div class="col-md-12">
+
+                            <div class="mb-3">
+                                <?php if (empty($data['id'])) { ?>
+                                <?=$app->component('input', [
+                                "name" => 'code',
+                                "type" => 'text',
+                                "placeholder" => $jatbi->lang("Mã lô"),
+                                "value" => $data['code'] ?? '',
+                                "required" => 'true',
+                            ])?>
+                                <?php } else { ?>
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Mã lô")?></label>
+                                <div class="form-control rounded-4 bg-light border-0"><?=$data['code'] ?? ''?></div>
+                                <div class="form-text small"><?=$jatbi->lang("Không thể đổi mã lô sau khi đã tạo")?></div>
+                                <?php } ?>
+                            </div>
+
+                            <div class="mb-3">
+                                <?=$app->component('textarea', [
+                                "name" => 'notes',
+                                "placeholder" => $jatbi->lang("Ghi chú"),
+                                "value" => $data['notes'] ?? '',
+                            ])?>
+                            </div>
+
+                            <?php if(!empty($data['id'])){ ?>
+                            <div class="mb-3">
+                                <?=$app->component('select',[
+                                    "name" => 'status',
+                                    "options" => $status_options,
+                                    "selected" => $data['status'] ?? 'A',
+                                    "placeholder" => $jatbi->lang("Trạng thái"),
+                                    "required" => 'true',
+                                ])?>
+                            </div>
+                            <?php } ?>
+
+                            <hr class="border-secondary border-opacity-50 my-3">
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label small text-secondary mb-0 fw-semibold">
+                                    <?=$jatbi->lang("Chi tiết lô (mỗi dòng 1 loại ngọc, có thể nhập kg và/hoặc số viên)")?>
+                                </label>
+                                <button type="button" id="btn-add-item"
+                                    class="btn btn-sm btn-eclo-light rounded-pill fw-semibold">
+                                    <i class="ti ti-plus me-1"></i><?=$jatbi->lang("Thêm dòng")?>
+                                </button>
+                            </div>
+
+                            <div id="batch-items"></div>
+                            <div id="batch-items-empty" class="text-secondary small text-center py-3 border rounded-4"
+                                style="display:none">
+                                <?=$jatbi->lang('Chưa có dòng chi tiết nào. Bấm "Thêm dòng" để bắt đầu.')?>
+                            </div>
+
+                            <div class="col-lg-12 mt-3">
+                                <button type="submit" class="btn btn-eclo w-100 py-3 rounded-pill fw-bold"
+                                    data-action="submit" data-alert="true"
+                                    data-load="this"><?=$jatbi->lang("Hoàn thành")?></button>
+                            </div>
+                        </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('form-batch');
+    if (!form) return;
+
+    var itemsWrap = document.getElementById('batch-items');
+    var emptyHint = document.getElementById('batch-items-empty');
+    var addBtn = document.getElementById('btn-add-item');
+
+    var pearlOptions = <?=json_encode(array_map(function ($p) {
+        return ['value' => $p['value'], 'text' => $p['text'], 'unit_mode' => $p['unit_mode'] ?? ''];
+    }, $pearl_options ?? []))?>;
+
+    var existingItems = <?=json_encode(array_map(function ($it) {
+        return [
+            'id' => $it['id'],
+            'pearl' => $it['pearl'],
+            'pearl_name' => $it['pearl_name'] ?? '',
+            'unit_mode' => $it['unit_mode'] ?? '',
+            'weight_kg_initial' => $it['weight_kg_initial'],
+            'amount_initial' => $it['amount_initial'],
+        ];
+    }, $items ?? []))?>;
+
+    var rowIndex = 0;
+
+    function esc(str) {
+        var div = document.createElement('div');
+        div.textContent = String(str == null ? '' : str);
+        return div.innerHTML;
+    }
+
+    function unitBadge(unitMode) {
+        if (unitMode === 'kg_and_vien') {
+            return '<span class="badge bg-info"><?=$jatbi->lang("Kg + viên")?></span>';
+        }
+        return '<span class="badge bg-warning"><?=$jatbi->lang("Kg → viên")?></span>';
+    }
+
+    function pearlSelectHtml(idx) {
+        var html = '<select name="items[' + idx + '][pearl]" class="form-select rounded-4" required>';
+        html += '<option value=""><?=$jatbi->lang("Chọn loại ngọc")?></option>';
+        pearlOptions.forEach(function (p) {
+            html += '<option value="' + esc(p.value) + '">' + esc(p.text) + '</option>';
+        });
+        html += '</select>';
+        return html;
+    }
+
+    function updateEmptyHint() {
+        var rows = itemsWrap.querySelectorAll('[data-row]:not([data-removed="1"])');
+        emptyHint.style.display = rows.length === 0 ? '' : 'none';
+    }
+
+    function addRow(existing) {
+        var idx = rowIndex++;
+        var row = document.createElement('div');
+        row.className = 'batch-item-row border rounded-4 p-3 mb-2';
+        row.setAttribute('data-row', '1');
+
+        var kgVal = (existing && existing.weight_kg_initial !== null && existing.weight_kg_initial !== undefined)
+            ? existing.weight_kg_initial : '';
+        var vienVal = (existing && existing.amount_initial !== null && existing.amount_initial !== undefined)
+            ? existing.amount_initial : '';
+
+        var pearlCell;
+        if (existing) {
+            pearlCell = ''
+                + '<input type="hidden" name="items[' + idx + '][id]" value="' + esc(existing.id) + '">'
+                + '<label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Loại ngọc")?></label>'
+                + '<div class="form-control rounded-4 bg-light border-0 d-flex justify-content-between align-items-center">'
+                + '<span>' + esc(existing.pearl_name) + '</span>' + unitBadge(existing.unit_mode)
+                + '</div>';
+        } else {
+            pearlCell = '<label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Loại ngọc")?></label>'
+                + pearlSelectHtml(idx);
+        }
+
+        row.innerHTML = ''
+            + '<div class="row g-2 align-items-end">'
+            + '  <div class="col-12 col-md-5">' + pearlCell + '</div>'
+            + '  <div class="col-6 col-md-3">'
+            + '    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Kg")?></label>'
+            + '    <input type="number" step="0.01" min="0" class="form-control rounded-4" name="items[' + idx + '][weight_kg_initial]" value="' + esc(kgVal) + '">'
+            + '  </div>'
+            + '  <div class="col-6 col-md-3">'
+            + '    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên")?></label>'
+            + '    <input type="number" step="1" min="0" class="form-control rounded-4" name="items[' + idx + '][amount_initial]" value="' + esc(vienVal) + '">'
+            + '  </div>'
+            + '  <div class="col-12 col-md-1 text-end">'
+            + '    <button type="button" class="btn btn-outline-danger rounded-circle btn-remove-row" title="<?=$jatbi->lang("Xóa dòng")?>">'
+            + '      <i class="ti ti-trash"></i>'
+            + '    </button>'
+            + '  </div>'
+            + '</div>';
+
+        if (existing) {
+            var hiddenDeleted = document.createElement('input');
+            hiddenDeleted.type = 'hidden';
+            hiddenDeleted.name = 'items[' + idx + '][deleted]';
+            hiddenDeleted.value = '0';
+            row.appendChild(hiddenDeleted);
+
+            row.querySelector('.btn-remove-row').addEventListener('click', function () {
+                var btn = this;
+                var isRemoved = row.getAttribute('data-removed') === '1';
+                var numberInputs = row.querySelectorAll('input[type="number"]');
+                if (isRemoved) {
+                    row.removeAttribute('data-removed');
+                    hiddenDeleted.value = '0';
+                    row.classList.remove('opacity-50');
+                    numberInputs.forEach(function (i) { i.disabled = false; });
+                    btn.innerHTML = '<i class="ti ti-trash"></i>';
+                } else {
+                    row.setAttribute('data-removed', '1');
+                    hiddenDeleted.value = '1';
+                    row.classList.add('opacity-50');
+                    numberInputs.forEach(function (i) { i.disabled = true; });
+                    btn.innerHTML = '<i class="ti ti-arrow-back-up"></i>';
+                }
+                updateEmptyHint();
+            });
+        } else {
+            row.querySelector('.btn-remove-row').addEventListener('click', function () {
+                row.remove();
+                updateEmptyHint();
+            });
+        }
+
+        itemsWrap.appendChild(row);
+        updateEmptyHint();
+    }
+
+    existingItems.forEach(function (it) { addRow(it); });
+    if (existingItems.length === 0) { addRow(null); }
+
+    addBtn.addEventListener('click', function () { addRow(null); });
+
+    form.addEventListener('submit', function (e) {
+        var activeRows = itemsWrap.querySelectorAll('[data-row]:not([data-removed="1"])');
+        if (activeRows.length === 0) {
+            e.preventDefault();
+            alert('<?=$jatbi->lang("Vui lòng thêm ít nhất 1 dòng chi tiết")?>');
+            return;
+        }
+        for (var i = 0; i < activeRows.length; i++) {
+            var kgInput = activeRows[i].querySelector('input[name$="[weight_kg_initial]"]');
+            var vienInput = activeRows[i].querySelector('input[name$="[amount_initial]"]');
+            var kg = kgInput ? parseFloat(kgInput.value) : NaN;
+            var vien = vienInput ? parseFloat(vienInput.value) : NaN;
+            var hasKg = !isNaN(kg) && kg > 0;
+            var hasVien = !isNaN(vien) && vien > 0;
+            if (!hasKg && !hasVien) {
+                e.preventDefault();
+                alert('<?=$jatbi->lang("Mỗi dòng cần nhập kg hoặc số viên hợp lệ")?>');
+                return;
+            }
+            var pearlSelect = activeRows[i].querySelector('select[name$="[pearl]"]');
+            if (pearlSelect && pearlSelect.value === '') {
+                e.preventDefault();
+                alert('<?=$jatbi->lang("Vui lòng chọn loại ngọc cho tất cả các dòng")?>');
+                return;
+            }
+        }
+    });
+})();
+</script>

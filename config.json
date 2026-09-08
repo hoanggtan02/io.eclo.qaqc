@@ -1,0 +1,9 @@
+{
+    "name": "Kho QAQC",
+    "version": "1.0.0",
+    "install" : "true",
+    "id": "io.eclo.qaqc",
+    "author": "ECLO",
+    "description": "Kho Sản Xuất QAQC",
+    "requires": "1.0.0"
+}
