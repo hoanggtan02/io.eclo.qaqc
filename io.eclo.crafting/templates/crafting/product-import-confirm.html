@@ -1,0 +1,94 @@
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="text-center mb-4">
+                <i class="ti ti-package-import text-eclo" style="font-size: 70px;"></i>
+                <h3 class="fw-bold mt-2">
+                    <?=$title?>
+                </h3>
+            </div>
+
+            <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4 mt-4" id="product-import-result">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center px-2 mb-3">
+                        <h6 class="fw-bold mb-0"><?=$jatbi->lang("Chi tiết sản phẩm chờ nhập")?></h6>
+                        <a href="/crafting/product-import-fixed-list" class="btn btn-sm btn-outline-secondary pjax-load">
+                            <i class="ti ti-arrow-left me-1"></i> <?=$jatbi->lang("Quay lại")?>
+                        </a>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="p-2"><?=$jatbi->lang("Sản phẩm")?></th>
+                                    <th width="15%" class="text-center p-2"><?=$jatbi->lang("Số lượng")?></th>
+                                    <th width="15%" class="p-2"><?=$jatbi->lang("Đơn vị")?></th>
+                                    <th width="15%" class="text-end p-2"><?=$jatbi->lang("Đơn giá")?></th>
+                                    <th width="15%" class="text-end p-2"><?=$jatbi->lang("Thành tiền")?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $items = $_SESSION['product_import_fixed']['items'] ?? [];
+                                $total_qty = 0;
+                                $grand_total = 0;
+                                if (empty($items)):
+                                ?>
+                                <tr>
+                                    <td colspan="5" class="text-center p-4 text-muted">
+                                        <?=$jatbi->lang("Không có sản phẩm nào trong phiếu này.")?>
+                                    </td>
+                                </tr>
+                                <?php else: 
+                                    foreach ($items as $item):
+                                        $sub_total = (float)$item['amount'] * (float)$item['price'];
+                                        $total_qty += (float)$item['amount'];
+                                        $grand_total += $sub_total;
+                                ?>
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold text-dark"><?=$item['code']?></div>
+                                        <small class="text-muted"><?=$item['name']?></small>
+                                    </td>
+                                    <td class="text-center fw-bold text-primary">
+                                        <?=number_format($item['amount'], 2)?>
+                                    </td>
+                                    <td><?=$item['unit_name']?></td>
+                                    <td class="text-end"><?=number_format($item['price'])?></td>
+                                    <td class="text-end fw-bold"><?=number_format($sub_total)?></td>
+                                </tr>
+                                <?php endforeach; endif; ?>
+                            </tbody>
+                            <?php if (!empty($items)): ?>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td class="text-end fw-bold text-uppercase"><?=$jatbi->lang("Tổng cộng")?></td>
+                                    <td class="text-center fw-bold text-primary"><?=number_format($total_qty, 2)?></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td class="text-end fw-bold text-danger"><?=number_format($grand_total)?></td>
+                                </tr>
+                            </tfoot>
+                            <?php endif; ?>
+                        </table>
+                    </div>
+
+                    <?php if(!empty($items)): ?>
+                    <div class="mb-3 mt-4 px-2">
+                        <label class="form-label fw-bold small"><?=$jatbi->lang("Nội dung phiếu nhập kho sửa")?></label>
+                        <textarea class="form-control form-control-sm bg-light" rows="2" readonly><?=htmlspecialchars($_SESSION['product_import_fixed']['display_content'] ?? '')?></textarea>
+                    </div>
+
+                    <div class="mt-4 px-2">
+                              <button class="btn btn-eclo w-100 p-2 fs-5" data-action="modal" type="button"
+                            data-url="/api/product-fixed-completed">
+                            <i class="fa fa-check me-2"></i> Hoàn tất
+                        </button>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -244,7 +244,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                                 'type' => 'button',
                                 'name' => $jatbi->lang("Nghiệm thu Chế tác"),
                                 'permission' => ['crafting.process'],
-                                'action' => ['data-url' => '/qaqc/crafting-process/' . $data['id'], 'data-action' => 'modal']
+                                'action' => ['href' => '/qaqc/crafting-process/' . $data['id'], 'class' => 'pjax-load text-primary fw-semibold']
                             ];
                         }
                     }
@@ -263,7 +263,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                                 'type' => 'button',
                                 'name' => $jatbi->lang("Xuất Kho TP"),
                                 'permission' => ['finish_stock.export'],
-                                'action' => ['data-url' => '/qaqc/export-products/' . $data['id'], 'data-action' => 'modal']
+                                'action' => ['href' => '/qaqc/export-products/' . $data['id'], 'class' => 'pjax-load text-primary fw-semibold']
                             ];
                             $buttons[] = [
                                 'type' => 'button',
@@ -962,7 +962,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         'type' => 'button',
                         'name' => $jatbi->lang("Nghiệm thu Chế tác"),
                         'permission' => ['crafting.process'],
-                        'action' => ['data-url' => '/qaqc/crafting-process/' . $r['batch'], 'data-action' => 'modal']
+                        'action' => ['href' => '/qaqc/crafting-process/' . $r['batch'], 'class' => 'pjax-load text-primary fw-semibold']
                     ];
                 } elseif ($r['stage']['code'] === 'TP') {
                     $stockBtns[] = [
@@ -975,7 +975,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         'type' => 'button',
                         'name' => $jatbi->lang("Xuất Kho TP"),
                         'permission' => ['finish_stock.export'],
-                        'action' => ['data-url' => '/qaqc/export-products/' . $r['batch'], 'data-action' => 'modal']
+                        'action' => ['href' => '/qaqc/export-products/' . $r['batch'], 'class' => 'pjax-load text-primary fw-semibold']
                     ];
                     $stockBtns[] = [
                         'type' => 'button',
@@ -1121,19 +1121,81 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     })->setPermissions(['pearl_unit.edit']);
 
 
+
+// ============================================================
+    // API LẤY DANH SÁCH ĐAI TỪ KHO CHẾ TÁC (ingredient type = 1)
     // ============================================================
-    // 3. GIAI ĐOẠN 4 — KHO CHẾ TÁC (CT / SX)
-    //    Điểm chốt chuyển đổi từ KG sang VIÊN (Akoya).
-    //    Lô ngọc sau khi khoan xiên/lưu trữ sẽ đưa vào chế tác,
-    //    phối đai vàng/bạc để lên thành phẩm.
+    $app->router('/api/belts', ['GET', 'POST'], function ($vars) use ($app, $jatbi) {
+        $app->header(['Content-Type' => 'application/json']);
+        $groupCrafting = intval($_GET['group_crafting'] ?? $_POST['group_crafting'] ?? 0);
+        $search = trim($app->xss($_GET['q'] ?? $_POST['q'] ?? ''));
+
+        $where = [
+            "AND" => [
+                "ingredient.deleted" => 0,
+                "ingredient.type" => 1, // Đai
+            ],
+            "LIMIT" => 50,
+            "ORDER" => ["ingredient.id" => "DESC"]
+        ];
+
+        if ($search !== '') {
+            $where['AND']['OR'] = [
+                "ingredient.code[~]" => $search,
+                "ingredient.name_ingredient[~]" => $search,
+            ];
+        }
+
+        if ($groupCrafting == 1) {
+            $where['AND']['ingredient.crafting[>]'] = 0;
+        } elseif ($groupCrafting == 2) {
+            $where['AND']['ingredient.craftingsilver[>]'] = 0;
+        } elseif ($groupCrafting == 3) {
+            $where['AND']['ingredient.craftingchain[>]'] = 0;
+        }
+
+        $items = $app->select("ingredient", [
+            "id", "code", "name_ingredient", "crafting", "craftingsilver", "craftingchain", "price", "cost", "group_crafting", "units"
+        ], $where);
+
+        $results = [];
+        foreach ($items as $it) {
+            $stock = 0;
+            if ($groupCrafting == 1) $stock = floatval($it['crafting']);
+            elseif ($groupCrafting == 2) $stock = floatval($it['craftingsilver']);
+            elseif ($groupCrafting == 3) $stock = floatval($it['craftingchain']);
+            else $stock = floatval($it['crafting'] ?: ($it['craftingsilver'] ?: $it['craftingchain']));
+
+            $nameDisplay = $it['code'] . ($it['name_ingredient'] ? ' - ' . $it['name_ingredient'] : '') . ' (Tồn: ' . $stock . ')';
+            $results[] = [
+                'id' => $it['id'],
+                'code' => $it['code'],
+                'name' => $it['name_ingredient'] ?: $it['code'],
+                'text' => $nameDisplay,
+                'stock' => $stock,
+                'price' => floatval($it['price']),
+                'cost' => floatval($it['cost']),
+                'units' => $it['units'],
+            ];
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $results]);
+    });
+
+    // ============================================================
+    // 3. GIAI ĐOẠN 4 — KHO CHẾ TÁC (CT / SX) - KHO CHUNG
+    //    Chế tác phối đai, Akoya chuyển dứt điểm từ KG sang VIÊN.
+    //    Tạo bản ghi chuẩn vào bảng crafting & crafting_details.
     // ============================================================
 
     $app->router('/crafting', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage, $batchItemsWithPearl) {
+        $ltStage = $getStageByCode('LT');
         $ctStage = $getStageByCode('CT');
+        $ltStageId = $ltStage['id'] ?? 3;
         $ctStageId = $ctStage['id'] ?? 4;
 
         if ($app->method() === 'GET') {
-            $vars['title'] = $jatbi->lang("Kho Chế tác (SX)");
+            $vars['title'] = $jatbi->lang("Kho Chế tác (SX) - Kho chung xưởng");
             $vars['pearl_filter_options'] = array_merge(
                 [['value' => '', 'text' => $jatbi->lang('Tất cả')]],
                 $app->select('pearl', ['id(value)', 'name(text)'], ['deleted' => 0, 'status' => 'A'])
@@ -1149,7 +1211,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             $where = [
                 "AND" => [
-                    "current_stage" => $ctStageId,
+                    "current_stage" => [$ltStageId, $ctStageId],
                     "status" => 'A',
                     "deleted" => 0,
                 ],
@@ -1176,8 +1238,9 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             $count = $app->count("production_batches", ["AND" => $where['AND']]);
             $datas = [];
 
-            $app->select("production_batches", "*", $where, function ($b) use (&$datas, $app, $jatbi, $ctStageId, $getBatchStockAtStage) {
-                $stock = $getBatchStockAtStage($b['id'], $ctStageId);
+            $app->select("production_batches", "*", $where, function ($b) use (&$datas, $app, $jatbi, $ltStageId, $ctStageId, $getBatchStockAtStage) {
+                $stageId = $b['current_stage'];
+                $stock = $getBatchStockAtStage($b['id'], $stageId);
                 $lines = [];
                 $totalKg = 0;
                 $totalAmount = 0;
@@ -1199,22 +1262,15 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         . htmlspecialchars($s['pearl_name']) . ':</span> ' . implode(' + ', $parts) . $badgeUnit . '</div>';
                 }
 
+                $stageName = ($stageId == $ltStageId) ? '<span class="badge bg-secondary">' . $jatbi->lang("Tại Kho Lưu Trữ (sẵn sàng)") . '</span>' : '<span class="badge bg-primary">' . $jatbi->lang("Đang Chế tác") . '</span>';
+
                 $datas[] = [
-                    "code" => '<span class="fw-bold">' . htmlspecialchars($b['code']) . '</span>',
+                    "code" => '<span class="fw-bold">' . htmlspecialchars($b['code']) . '</span><br>' . $stageName,
                     "pearl_name" => !empty($lines) ? implode('', $lines) : '<span class="text-secondary">-</span>',
                     "weight_kg" => $totalKg > 0 ? number_format($totalKg, 2) . ' kg' : '-',
                     "amount" => $totalAmount > 0 ? number_format($totalAmount) . ' ' . $jatbi->lang("viên") : '<span class="text-secondary">-</span>',
                     "date" => date('d/m/Y H:i', strtotime($b['date'])),
-                    "action" => $app->component("action", [
-                        "button" => [
-                            [
-                                'type' => 'button',
-                                'name' => $jatbi->lang("Nghiệm thu Chế tác"),
-                                'permission' => ['crafting.process'],
-                                'action' => ['data-url' => '/qaqc/crafting-process/' . $b['id'], 'data-action' => 'modal']
-                            ],
-                        ]
-                    ]),
+                    "action" => '<a href="' . $jatbi->url('/qaqc/crafting-process/' . $b['id']) . '" class="btn btn-primary btn-sm rounded-pill px-3 pjax-load fw-semibold"><i class="ti ti-tools me-1"></i> ' . $jatbi->lang("Vào Chế tác") . '</a>',
                 ];
             });
 
@@ -1223,7 +1279,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     })->setPermissions(['crafting']);
 
     $app->router('/crafting-process/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
-        $vars['title'] = $jatbi->lang("Nghiệm thu Chế tác & Đạt QAQC");
+        $vars['title'] = $jatbi->lang("Nghiệm thu Chế tác & Lên Thành Phẩm QAQC");
 
         $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
         if (!$batch) {
@@ -1231,41 +1287,81 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             return;
         }
 
+        $ltStage = $getStageByCode('LT');
         $ctStage = $getStageByCode('CT');
         $tpStage = $getStageByCode('TP');
+        $ltStageId = $ltStage['id'] ?? 3;
         $ctStageId = $ctStage['id'] ?? 4;
         $tpStageId = $tpStage['id'] ?? 5;
 
-        if ($batch['current_stage'] != $ctStageId) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không ở trong Kho Chế tác (CT)')], $jatbi->ajax());
+        $currentStageId = $batch['current_stage'];
+        if ($currentStageId != $ltStageId && $currentStageId != $ctStageId) {
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này hiện không ở Kho Lưu Trữ (LT) hoặc Kho Chế tác (CT)')], $jatbi->ajax());
             return;
         }
 
-        $stock = $getBatchStockAtStage($vars['id'], $ctStageId);
+        $stock = $getBatchStockAtStage($vars['id'], $currentStageId);
         if (empty($stock)) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn tồn kho tại Kho Chế tác')], $jatbi->ajax());
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn tồn ngọc để vào chế tác')], $jatbi->ajax());
             return;
         }
 
         if ($app->method() === 'GET') {
             $vars['batch'] = $batch;
             $vars['stock'] = array_values($stock);
-            echo $app->render($template . '/qaqc/crafting-process.html', $vars, $jatbi->ajax());
+            $vars['categorys'] = $app->select("categorys", ["id", "name"], ["deleted" => 0, "status" => "A"]);
+            $vars['products_group'] = $app->select("products_group", ["id", "name"], ["deleted" => 0, "status" => "A"]);
+            $vars['default_codes'] = $app->select("default_code", ["id", "code", "name"], ["deleted" => 0, "status" => "A"]);
+            $vars['units'] = $app->select("units", ["id", "name"], ["deleted" => 0, "status" => "A"]);
+            $vars['personnels'] = $app->select("personnels", ["id", "name"], ["deleted" => 0, "status" => "A"]);
+
+            echo $app->render($template . '/qaqc/crafting-process.html', $vars);
         } elseif ($app->method() === 'POST') {
             $app->header(['Content-Type' => 'application/json']);
 
             $linesRaw = $_POST['lines'] ?? [];
             if (!is_array($linesRaw) || empty($linesRaw)) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Thiếu dữ liệu chi tiết thành phẩm')]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Thiếu dữ liệu chi tiết ngọc thành phẩm')]);
                 return;
             }
 
-            $beltType = $app->xss($_POST['belt_type'] ?? 'none');
-            $beltCode = $app->xss($_POST['belt_code'] ?? '');
-            $craftingNotes = $app->xss($_POST['crafting_notes'] ?? '');
+            // Dữ liệu sản phẩm chế tác
+            $productCode = trim($app->xss($_POST['product_code'] ?? ''));
+            $productName = trim($app->xss($_POST['product_name'] ?? ''));
+            $categoryId = intval($_POST['category_id'] ?? 0);
+            $groupId = intval($_POST['group_id'] ?? 0);
+            $defaultCodeId = intval($_POST['default_code_id'] ?? 0);
+            $unitId = intval($_POST['unit_id'] ?? 0);
+            $personnelId = intval($_POST['personnel_id'] ?? 0);
+            $price = floatval($_POST['price'] ?? 0);
+            $cost = floatval($_POST['cost'] ?? 0);
+            $notes = $app->xss($_POST['crafting_notes'] ?? '');
+
+            // Thông tin đai
+            $groupCrafting = intval($_POST['group_crafting'] ?? 0); // 0: Không dùng, 1: Vàng, 2: Bạc, 3: Chuỗi
+            $daiId = intval($_POST['dai_id'] ?? 0);
+            $daiAmountPerItem = floatval($_POST['dai_amount'] ?? 1);
+            if ($daiAmountPerItem <= 0) $daiAmountPerItem = 1;
+
+            if ($productCode === '' || $productName === '') {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã và tên sản phẩm thành phẩm')]);
+                return;
+            }
+
+            // Kiểm tra mã sản phẩm đã có trong bảng crafting chưa
+            $existCrafting = $app->count("crafting", "id", [
+                "code" => $productCode,
+                "deleted" => 0,
+            ]);
+            if ($existCrafting > 0) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Mã sản phẩm này đã tồn tại trong Kho Chế tác! Vui lòng chọn mã khác.')]);
+                return;
+            }
 
             $cleanLines = [];
             $error = '';
+            $totalFinishAmount = 0;
+            $totalFinishKg = 0;
 
             foreach ($stock as $pearlId => $s) {
                 $row = $linesRaw[$pearlId] ?? [];
@@ -1284,6 +1380,8 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     'weight_kg_in' => $s['weight_kg'],
                     'amount_in' => $s['amount'],
                 ];
+                $totalFinishAmount += $amountOut;
+                $totalFinishKg += ($weightKgOut > 0 ? $weightKgOut : $s['weight_kg']);
             }
 
             if ($error !== '') {
@@ -1291,18 +1389,166 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 return;
             }
 
+            // Kiểm tra tồn kho đai nếu có dùng
+            $daiInfo = null;
+            if ($groupCrafting > 0 && $daiId > 0) {
+                $daiInfo = $app->get("ingredient", "*", ["id" => $daiId, "deleted" => 0, "type" => 1]);
+                if (!$daiInfo) {
+                    echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Không tìm thấy thông tin đai đã chọn')]);
+                    return;
+                }
+                $stockDai = 0;
+                if ($groupCrafting == 1) $stockDai = floatval($daiInfo['crafting']);
+                elseif ($groupCrafting == 2) $stockDai = floatval($daiInfo['craftingsilver']);
+                elseif ($groupCrafting == 3) $stockDai = floatval($daiInfo['craftingchain']);
+
+                $totalDaiNeeded = $daiAmountPerItem * $totalFinishAmount;
+                if ($stockDai < $totalDaiNeeded) {
+                    echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Số lượng đai tồn kho không đủ (Cần: ') . $totalDaiNeeded . ', Tồn: ' . $stockDai . ')']);
+                    return;
+                }
+            }
+
             $userId = $app->getSession("accounts")['id'] ?? 0;
             $now = date('Y-m-d H:i:s');
             $batchId = $vars['id'];
 
-            $noteStr = "Nghiệm thu Chế tác: " . $beltType . ($beltCode ? " ($beltCode)" : "") . ($craftingNotes ? " - $craftingNotes" : "");
+            $ok = $app->action(function () use ($app, $batchId, $batch, $currentStageId, $ctStageId, $tpStageId, $cleanLines, $userId, $now, $productCode, $productName, $categoryId, $groupId, $defaultCodeId, $unitId, $personnelId, $price, $cost, $notes, $groupCrafting, $daiId, $daiAmountPerItem, $daiInfo, $totalFinishAmount) {
+                // 1. Tạo bản ghi trong bảng crafting (Kho Chế Tác chung)
+                $craftingInsert = [
+                    "code" => $productCode,
+                    "name" => $productName,
+                    "content" => "Chế tác từ Lô SX: " . $batch['code'],
+                    "notes" => "Lô SX: " . $batch['code'] . ($notes ? " - $notes" : ""),
+                    "amount" => $totalFinishAmount,
+                    "amount_total" => $totalFinishAmount,
+                    "amount_export" => 0,
+                    "price" => $price,
+                    "cost" => $cost,
+                    "total" => (float) $totalFinishAmount * (float) $price,
+                    "categorys" => $categoryId,
+                    "group" => $groupId,
+                    "units" => $unitId,
+                    "personnels" => $personnelId,
+                    "group_crafting" => $groupCrafting,
+                    "default_code" => $defaultCodeId,
+                    "status" => 1,
+                    "type" => 1,
+                    "user" => $userId,
+                    "date" => $now,
+                    "deleted" => 0,
+                ];
+                $app->insert("crafting", $craftingInsert);
+                $craftingId = $app->id();
+                if (!$craftingId) return false;
 
-            $ok = $app->action(function () use ($app, $batchId, $ctStageId, $tpStageId, $cleanLines, $userId, $now, $noteStr) {
-                // 1. Ghi phiếu xuất khỏi Kho Chế tác (CT)
+                // 2. Ghi history_crafting
+                $historyCrafting = [
+                    "code" => $productCode,
+                    "name" => $productName,
+                    "notes" => "Lô SX: " . $batch['code'],
+                    "amount" => $totalFinishAmount,
+                    "price" => $price,
+                    "total" => (float) $totalFinishAmount * (float) $price,
+                    "user" => $userId,
+                    "date" => $now,
+                    "personnels" => $personnelId,
+                    "group_crafting" => $groupCrafting,
+                    "crafting" => $craftingId,
+                    "unit" => $unitId,
+                    "type" => 1,
+                ];
+                $app->insert("history_crafting", $historyCrafting);
+                $historyId = $app->id();
+
+                // 3. Tạo chi tiết nguyên liệu trong crafting_details
+                // 3a. Dòng đai (type = 1) nếu có dùng đai
+                if ($groupCrafting > 0 && $daiId > 0 && $daiInfo) {
+                    $totalDaiUsed = $daiAmountPerItem * $totalFinishAmount;
+                    $app->insert("crafting_details", [
+                        "crafting" => $craftingId,
+                        "ingredient" => $daiId,
+                        "type" => 1,
+                        "code" => $daiInfo['code'] ?? '',
+                        "group" => $groupId,
+                        "categorys" => $categoryId,
+                        "units" => $daiInfo['units'] ?? 0,
+                        "amount" => $totalDaiUsed,
+                        "price" => $daiInfo['price'] ?? 0,
+                        "cost" => $daiInfo['cost'] ?? 0,
+                        "total" => (float) $totalDaiUsed * (float) ($daiInfo['price'] ?? 0),
+                        "user" => $userId,
+                        "date" => $now,
+                        "deleted" => 0,
+                    ]);
+
+                    // Trừ tồn kho đai trong bảng ingredient
+                    if ($groupCrafting == 1) {
+                        $app->update("ingredient", ["crafting[-]" => $totalDaiUsed], ["id" => $daiId]);
+                    } elseif ($groupCrafting == 2) {
+                        $app->update("ingredient", ["craftingsilver[-]" => $totalDaiUsed], ["id" => $daiId]);
+                    } elseif ($groupCrafting == 3) {
+                        $app->update("ingredient", ["craftingchain[-]" => $totalDaiUsed], ["id" => $daiId]);
+                    }
+
+                    // Ghi history_crafting_ingredient
+                    if ($historyId) {
+                        $app->insert("history_crafting_ingredient", [
+                            "history_crafting" => $historyId,
+                            "crafting" => $craftingId,
+                            "ingredient" => $daiId,
+                            "code" => $daiInfo['code'] ?? '',
+                            "type" => 1,
+                            "amount" => $totalDaiUsed,
+                            "price" => $daiInfo['price'] ?? 0,
+                            "total" => (float) $totalDaiUsed * (float) ($daiInfo['price'] ?? 0),
+                            "user" => $userId,
+                            "date" => $now,
+                        ]);
+                    }
+                }
+
+                // 3b. Dòng ngọc (type = 2) từ lô
+                foreach ($cleanLines as $cl) {
+                    $app->insert("crafting_details", [
+                        "crafting" => $craftingId,
+                        "ingredient" => 0,
+                        "type" => 2,
+                        "code" => $batch['code'],
+                        "group" => $groupId,
+                        "categorys" => $categoryId,
+                        "pearl" => $cl['pearl'],
+                        "amount" => $cl['amount_finish'],
+                        "price" => 0,
+                        "cost" => 0,
+                        "total" => 0,
+                        "user" => $userId,
+                        "date" => $now,
+                        "deleted" => 0,
+                    ]);
+
+                    if ($historyId) {
+                        $app->insert("history_crafting_ingredient", [
+                            "history_crafting" => $historyId,
+                            "crafting" => $craftingId,
+                            "ingredient" => 0,
+                            "code" => $batch['code'],
+                            "type" => 2,
+                            "amount" => $cl['amount_finish'],
+                            "price" => 0,
+                            "total" => 0,
+                            "user" => $userId,
+                            "date" => $now,
+                        ]);
+                    }
+                }
+
+                // 4. Ghi movement xuất khỏi Kho hiện tại (LT hoặc CT)
                 $app->insert("production_stage_movements", [
-                    "batch" => $batchId, "stage" => $ctStageId, "type" => "export",
-                    "stage_related" => $tpStageId, "notes" => $noteStr,
+                    "batch" => $batchId, "stage" => $currentStageId, "type" => "export",
+                    "stage_related" => $tpStageId, "notes" => "Xuất vào Chế tác SKU: " . $productCode,
                     "date" => $now, "user" => $userId, "deleted" => 0,
+                    "crafting" => $craftingId,
                 ]);
                 $exportMovementId = $app->id();
                 if (!$exportMovementId) return false;
@@ -1317,11 +1563,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     ]);
                 }
 
-                // 2. Ghi phiếu nhập vào Kho Thành Phẩm QAQC (TP) với số viên thành phẩm
+                // 5. Ghi movement nhập vào Kho Thành Phẩm QAQC (TP) với số viên thành phẩm đạt QAQC
                 $app->insert("production_stage_movements", [
                     "batch" => $batchId, "stage" => $tpStageId, "type" => "import",
-                    "stage_related" => $ctStageId, "notes" => "Nhập kho Thành Phẩm đạt QAQC",
+                    "stage_related" => $ctStageId, "notes" => "Nhập kho Thành Phẩm đạt QAQC - SKU: " . $productCode,
                     "date" => $now, "user" => $userId, "deleted" => 0,
+                    "crafting" => $craftingId,
                 ]);
                 $importMovementId = $app->id();
                 if (!$importMovementId) return false;
@@ -1335,27 +1582,30 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     ]);
                 }
 
-                // 3. Cập nhật current_stage của lô sang Kho Thành phẩm (TP)
-                $app->update("production_batches", ["current_stage" => $tpStageId], ["id" => $batchId]);
+                // 6. Cập nhật lô: chuyển stage sang TP (Kho Thành phẩm QAQC) và gắn crafting ID
+                $app->update("production_batches", [
+                    "current_stage" => $tpStageId,
+                    "crafting" => $craftingId,
+                ], ["id" => $batchId]);
 
                 return true;
             });
 
             if ($ok) {
-                $jatbi->logs('production_stage_movements', 'crafting_process', ['batch' => $batchId, 'lines' => $cleanLines]);
-                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Nghiệm thu Chế tác thành công! Lô đã chuyển sang Kho Thành Phẩm QAQC.'), 'url' => $_SERVER['HTTP_REFERER']]);
+                $jatbi->logs('crafting', 'create_from_batch', ['batch' => $batchId, 'code' => $productCode]);
+                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Chế tác thành công! Thành phẩm đã được ghi nhận vào Kho Chế Tác chung và Kho Thành Phẩm QAQC.'), 'url' => $jatbi->url('/qaqc/finish-stock')]);
             } else {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra trong quá trình lưu dữ liệu')]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra trong quá trình lưu dữ liệu chế tác')]);
             }
         }
     })->setPermissions(['crafting.process']);
 
 
     // ============================================================
-    // 4. GIAI ĐOẠN 5 — KHO THÀNH PHẨM QAQC (TP) & 3 NHÁNH RẼ:
-    //    5.1: Xuất bán trực tiếp
-    //    5.2: Xuất về Kho TP bán lẻ (bảng products)
-    //    5.3: Xuất vào Kho NL nguyên liệu (bảng ingredient)
+    // 4. GIAI ĐOẠN 5 — KHO THÀNH PHẨM QAQC (TP) & 3 NHÁNH XUẤT:
+    //    5.1: Phân bổ xuống Cửa hàng & Quầy Kho TP bán lẻ (warehouses data=pairing)
+    //    5.2: Xuất bán sỉ/trực tiếp
+    //    5.3: Xuất trả ngọc nguyên liệu vào Kho NL (ingredient)
     // ============================================================
 
     $app->router('/finish-stock', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
@@ -1363,7 +1613,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $tpStageId = $tpStage['id'] ?? 5;
 
         if ($app->method() === 'GET') {
-            $vars['title'] = $jatbi->lang("Kho Thành Phẩm QAQC");
+            $vars['title'] = $jatbi->lang("Kho Thành phẩm QAQC");
             $vars['pearl_filter_options'] = array_merge(
                 [['value' => '', 'text' => $jatbi->lang('Tất cả')]],
                 $app->select('pearl', ['id(value)', 'name(text)'], ['deleted' => 0, 'status' => 'A'])
@@ -1379,21 +1629,47 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             $where = [
                 "AND" => [
-                    "current_stage" => $tpStageId,
-                    "deleted" => 0,
+                    "production_batches.current_stage" => $tpStageId,
+                    "production_batches.status" => 'A',
+                    "production_batches.deleted" => 0,
                 ],
                 "LIMIT" => [$start, $length],
-                "ORDER" => ["id" => "DESC"],
+                "ORDER" => ["production_batches.id" => "DESC"],
             ];
 
             if ($searchValue !== '') {
-                $where['AND']['code[~]'] = $searchValue;
+                $where['AND']['production_batches.code[~]'] = $searchValue;
             }
+
+            if (isset($_POST['pearl']) && $_POST['pearl'] !== '') {
+                $pearlFilter = $app->xss($_POST['pearl']);
+                $batchIdsForPearl = [];
+                $app->select("production_batch_items", ["batch"], [
+                    "pearl" => $pearlFilter,
+                    "deleted" => 0,
+                ], function ($row) use (&$batchIdsForPearl) {
+                    $batchIdsForPearl[] = $row['batch'];
+                });
+                $where['AND']['production_batches.id'] = !empty($batchIdsForPearl) ? array_values(array_unique($batchIdsForPearl)) : [0];
+            }
+
+            $joins = [
+                "[<]crafting" => ["crafting" => "id"]
+            ];
 
             $count = $app->count("production_batches", ["AND" => $where['AND']]);
             $datas = [];
 
-            $app->select("production_batches", "*", $where, function ($b) use (&$datas, $app, $jatbi, $tpStageId, $getBatchStockAtStage) {
+            $app->select("production_batches", $joins, [
+                "production_batches.id",
+                "production_batches.code",
+                "production_batches.date",
+                "production_batches.crafting",
+                "crafting.name(crafting_name)",
+                "crafting.code(crafting_code)",
+                "crafting.price(crafting_price)",
+                "crafting.amount_total(crafting_stock)",
+            ], $where, function ($b) use (&$datas, $app, $jatbi, $tpStageId, $getBatchStockAtStage) {
                 $stock = $getBatchStockAtStage($b['id'], $tpStageId);
                 $lines = [];
                 $totalKg = 0;
@@ -1402,7 +1678,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 foreach ($stock as $s) {
                     $parts = [];
                     if ($s['amount'] > 0) {
-                        $parts[] = number_format($s['amount']) . ' ' . $jatbi->lang("viên");
+                        $parts[] = '<span class="fw-bold text-success">' . number_format($s['amount']) . ' ' . $jatbi->lang("viên") . '</span>';
                         $totalAmount += intval($s['amount']);
                     }
                     if ($s['weight_kg'] > 0) {
@@ -1410,37 +1686,27 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         $totalKg += floatval($s['weight_kg']);
                     }
                     $lines[] = '<div class="small text-nowrap"><span class="fw-semibold">'
-                        . htmlspecialchars($s['pearl_name']) . ':</span> ' . implode(' - ', $parts) . '</div>';
+                        . htmlspecialchars($s['pearl_name']) . ':</span> ' . implode(' · ', $parts) . '</div>';
                 }
 
-                $buttons = [
-                    [
-                        'type' => 'button',
-                        'name' => $jatbi->lang("1. Xuất bán"),
-                        'permission' => ['finish_stock.export'],
-                        'action' => ['data-url' => '/qaqc/export-sell/' . $b['id'], 'data-action' => 'modal']
-                    ],
-                    [
-                        'type' => 'button',
-                        'name' => $jatbi->lang("2. Xuất Kho TP"),
-                        'permission' => ['finish_stock.export'],
-                        'action' => ['data-url' => '/qaqc/export-products/' . $b['id'], 'data-action' => 'modal']
-                    ],
-                    [
-                        'type' => 'button',
-                        'name' => $jatbi->lang("3. Xuất Kho NL"),
-                        'permission' => ['finish_stock.export'],
-                        'action' => ['data-url' => '/qaqc/export-ingredient/' . $b['id'], 'data-action' => 'modal']
-                    ],
-                ];
+                $craftingDisplay = '';
+                if (!empty($b['crafting_code'])) {
+                    $craftingDisplay = '<div class="small"><span class="fw-bold text-primary">[' . htmlspecialchars($b['crafting_code']) . ']</span> ' . htmlspecialchars($b['crafting_name']) . '<br><span class="text-secondary">' . $jatbi->lang("Giá") . ': ' . number_format($b['crafting_price']) . ' đ | ' . $jatbi->lang("Tồn kho chế tác") . ': ' . number_format($b['crafting_stock']) . '</span></div>';
+                } else {
+                    $craftingDisplay = '<span class="text-secondary">' . $jatbi->lang("Chưa gắn thành phẩm") . '</span>';
+                }
 
                 $datas[] = [
-                    "code" => '<span class="fw-bold">' . htmlspecialchars($b['code']) . '</span>',
-                    "pearl_name" => !empty($lines) ? implode('', $lines) : '<span class="text-secondary">-</span>',
+                    "code" => '<span class="fw-bold">#' . htmlspecialchars($b['code']) . '</span>',
+                    "pearl_name" => $craftingDisplay . (!empty($lines) ? '<div class="mt-1">' . implode('', $lines) . '</div>' : ''),
                     "amount" => $totalAmount > 0 ? '<span class="badge bg-success fs-6">' . number_format($totalAmount) . ' ' . $jatbi->lang("viên") . '</span>' : '<span class="text-secondary">-</span>',
                     "weight_kg" => $totalKg > 0 ? number_format($totalKg, 2) . ' kg' : '-',
                     "date" => date('d/m/Y H:i', strtotime($b['date'])),
-                    "action" => $app->component("action", ["button" => $buttons]),
+                    "action" => '<div class="d-flex justify-content-end gap-1 flex-wrap">'
+                        . '<a href="' . $jatbi->url('/qaqc/export-products/' . $b['id']) . '" class="btn btn-primary btn-sm rounded-pill px-3 pjax-load fw-semibold"><i class="ti ti-truck-delivery me-1"></i> ' . $jatbi->lang("Phân bổ xuống Quầy") . '</a>'
+                        . '<button data-action="modal" data-url="/qaqc/export-sell/' . $b['id'] . '" class="btn btn-outline-success btn-sm rounded-pill px-2"><i class="ti ti-cash me-1"></i> ' . $jatbi->lang("Bán sỉ") . '</button>'
+                        . '<button data-action="modal" data-url="/qaqc/export-ingredient/' . $b['id'] . '" class="btn btn-outline-secondary btn-sm rounded-pill px-2"><i class="ti ti-arrow-back-up me-1"></i> ' . $jatbi->lang("Trả kho NL") . '</button>'
+                        . '</div>',
                 ];
             });
 
@@ -1448,114 +1714,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
     })->setPermissions(['finish_stock']);
 
-    // Nhánh 5.1: Xuất bán trực tiếp
-    $app->router('/export-sell/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
-        $vars['title'] = $jatbi->lang("Xuất bán trực tiếp thành phẩm QAQC");
-
-        $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
-        if (!$batch) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Không tìm thấy lô sản xuất')], $jatbi->ajax());
-            return;
-        }
-
-        $tpStage = $getStageByCode('TP');
-        $tpStageId = $tpStage['id'] ?? 5;
-        $stock = $getBatchStockAtStage($vars['id'], $tpStageId);
-
-        if ($app->method() === 'GET') {
-            if (empty($stock)) {
-                echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn tồn thành phẩm tại Kho TP QAQC')], $jatbi->ajax());
-                return;
-            }
-            $vars['batch'] = $batch;
-            $vars['stock'] = array_values($stock);
-            echo $app->render($template . '/qaqc/export-sell.html', $vars, $jatbi->ajax());
-        } elseif ($app->method() === 'POST') {
-            $app->header(['Content-Type' => 'application/json']);
-
-            $linesRaw = $_POST['lines'] ?? [];
-            $customerName = trim($app->xss($_POST['customer_name'] ?? ''));
-            $totalPrice = floatval($_POST['total_price'] ?? 0);
-            $notes = $app->xss($_POST['notes'] ?? '');
-
-            $cleanLines = [];
-            $error = '';
-
-            foreach ($stock as $pearlId => $s) {
-                $row = $linesRaw[$pearlId] ?? [];
-                $amountOut = intval($row['amount'] ?? 0);
-                $weightKgOut = floatval($row['weight_kg'] ?? 0);
-
-                if ($amountOut < 0 || $weightKgOut < 0) {
-                    $error = $jatbi->lang('Số lượng xuất bán không hợp lệ');
-                    break;
-                }
-                if ($amountOut > $s['amount']) {
-                    $error = $jatbi->lang('Số viên xuất bán vượt quá tồn kho của ') . ($s['pearl_name'] ?? '');
-                    break;
-                }
-                if ($amountOut > 0 || $weightKgOut > 0) {
-                    $cleanLines[] = [
-                        'pearl' => $pearlId,
-                        'amount' => $amountOut,
-                        'weight_kg' => $weightKgOut,
-                    ];
-                }
-            }
-
-            if ($error === '' && empty($cleanLines)) {
-                $error = $jatbi->lang('Vui lòng nhập số lượng viên xuất bán');
-            }
-
-            if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
-                return;
-            }
-
-            $userId = $app->getSession("accounts")['id'] ?? 0;
-            $now = date('Y-m-d H:i:s');
-            $batchId = $vars['id'];
-            $noteFull = "Xuất bán trực tiếp" . ($customerName ? " - Khách hàng: $customerName" : "") . ($totalPrice > 0 ? " - Giá trị: " . number_format($totalPrice) . " đ" : "") . ($notes ? " ($notes)" : "");
-
-            $ok = $app->action(function () use ($app, $batchId, $tpStageId, $cleanLines, $userId, $now, $noteFull) {
-                $app->insert("production_stage_movements", [
-                    "batch" => $batchId, "stage" => $tpStageId, "type" => "export",
-                    "stage_related" => null, "notes" => $noteFull,
-                    "date" => $now, "user" => $userId, "deleted" => 0,
-                ]);
-                $exportId = $app->id();
-                if (!$exportId) return false;
-
-                foreach ($cleanLines as $cl) {
-                    $app->insert("production_stage_movement_items", [
-                        "movement" => $exportId, "pearl" => $cl['pearl'],
-                        "weight_kg" => $cl['weight_kg'], "amount" => $cl['amount'],
-                        "weight_kg_hao_hut" => 0, "amount_hao_hut" => 0,
-                        "deleted" => 0,
-                    ]);
-                }
-
-                return true;
-            });
-
-            if ($ok) {
-                // Kiểm tra nếu tồn kho TP về 0 thì tự động đóng lô
-                $remainStock = $getBatchStockAtStage($batchId, $tpStageId);
-                if (empty($remainStock)) {
-                    $app->update("production_batches", ["status" => 'D'], ["id" => $batchId]);
-                }
-
-                $jatbi->logs('production_stage_movements', 'export_sell', ['batch' => $batchId, 'lines' => $cleanLines]);
-                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Xuất bán thành công!'), 'url' => $_SERVER['HTTP_REFERER']]);
-            } else {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra, vui lòng thử lại')]);
-            }
-        }
-    })->setPermissions(['finish_stock.export']);
-
-    // Nhánh 5.2: Xuất về Kho TP hiện tại (products)
+    // ============================================================
+    // Nhánh 5.1: Phân bổ xuống Cửa hàng & Quầy Kho TP bán lẻ
+    // (Sinh phiếu warehouses data=pairing, type=export, export_status=1)
+    // ============================================================
     $app->router('/export-products/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
-        $vars['title'] = $jatbi->lang("Xuất về Kho Thành Phẩm bán lẻ");
+        $vars['title'] = $jatbi->lang("Phân bổ xuống Cửa hàng & Quầy Kho Thành Phẩm");
 
         $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
         if (!$batch) {
@@ -1567,42 +1731,38 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $tpStageId = $tpStage['id'] ?? 5;
         $stock = $getBatchStockAtStage($vars['id'], $tpStageId);
 
+        // Lấy thông tin crafting
+        $craftingId = $batch['crafting'] ?? 0;
+        $crafting = null;
+        if ($craftingId > 0) {
+            $crafting = $app->get("crafting", "*", ["id" => $craftingId, "deleted" => 0]);
+        }
+
         if ($app->method() === 'GET') {
             if (empty($stock)) {
                 echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn tồn thành phẩm tại Kho TP QAQC')], $jatbi->ajax());
                 return;
             }
             $vars['batch'] = $batch;
+            $vars['crafting'] = $crafting;
             $vars['stock'] = array_values($stock);
             $vars['total_amount'] = array_sum(array_column($stock, 'amount'));
             $vars['total_weight_kg'] = array_sum(array_column($stock, 'weight_kg'));
-            $vars['units'] = $app->select("units", ["id", "name"], ["deleted" => 0]);
-            $vars['stores'] = $app->select("stores", ["id", "name"], ["deleted" => 0]);
-            $vars['branches'] = $app->select("branch", ["id", "name", "stores"], ["deleted" => 0]);
-            $vars['categorys'] = $app->select("categorys", ["id", "name"], ["deleted" => 0]);
+            $vars['stores'] = $app->select("stores", ["id", "name"], ["deleted" => 0, "status" => "A"]);
+            $vars['branches'] = $app->select("branch", ["id", "name", "stores"], ["deleted" => 0, "status" => "A"]);
 
-            echo $app->render($template . '/qaqc/export-products.html', $vars, $jatbi->ajax());
+            echo $app->render($template . '/qaqc/export-products.html', $vars);
         } elseif ($app->method() === 'POST') {
             $app->header(['Content-Type' => 'application/json']);
 
-            $productCode = trim($app->xss($_POST['product_code'] ?? ''));
-            $productName = trim($app->xss($_POST['product_name'] ?? ''));
             $amount = intval($_POST['amount'] ?? 0);
-            $weightKg = floatval($_POST['weight_kg'] ?? 0);
-            $unitId = intval($_POST['unit_id'] ?? 1);
-            $categoryId = intval($_POST['category_id'] ?? 1);
-            $cost = floatval($_POST['cost'] ?? 0);
-            $price = floatval($_POST['price'] ?? 0);
             $storeId = intval($_POST['store_id'] ?? 0);
             $branchId = intval($_POST['branch_id'] ?? 0);
             $notes = $app->xss($_POST['notes'] ?? '');
 
-            if ($productCode === '' || $productName === '') {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã và tên sản phẩm'), 'sound' => $setting['site_sound']]);
-                return;
-            }
-            if ($amount <= 0) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập số viên hợp lệ'), 'sound' => $setting['site_sound']]);
+            $totalStockAmount = array_sum(array_column($stock, 'amount'));
+            if ($amount <= 0 || $amount > $totalStockAmount) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Số lượng phân bổ không hợp lệ (Tối đa: ') . $totalStockAmount . ')', 'sound' => $setting['site_sound']]);
                 return;
             }
             if ($storeId <= 0) {
@@ -1616,33 +1776,11 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             $storeInfo = $app->get("stores", ["id", "name"], ["id" => $storeId]);
             $branchInfo = $branchId > 0 ? $app->get("branch", ["id", "name"], ["id" => $branchId]) : null;
-            $allocDesc = "Phân bổ từ Kho Chế tác xuống " . ($storeInfo['name'] ?? '') . ($branchInfo ? ' - ' . $branchInfo['name'] : '');
+            $allocDesc = "Phân bổ từ Kho Chế tác QAQC xuống " . ($storeInfo['name'] ?? '') . ($branchInfo ? ' - ' . $branchInfo['name'] : '');
 
-            $ok = $app->action(function () use ($app, $batchId, $tpStageId, $stock, $productCode, $productName, $amount, $weightKg, $unitId, $categoryId, $cost, $price, $storeId, $branchId, $notes, $allocDesc, $userId, $now) {
-                // 1. Tạo bản ghi mới trong bảng products (Kho Thành Phẩm bán lẻ của Cửa hàng/Quầy)
-                $app->insert("products", [
-                    "code" => $productCode,
-                    "name" => $productName,
-                    "categorys" => $categoryId,
-                    "amount" => $amount,
-                    "weight_kg" => $weightKg,
-                    "units" => $unitId,
-                    "cost" => $cost,
-                    "price" => $price,
-                    "stores" => $storeId,
-                    "branch" => $branchId,
-                    "production_batch" => $batchId,
-                    "notes" => $notes,
-                    "status" => 'A',
-                    "date" => $now,
-                    "user" => $userId,
-                    "deleted" => 0,
-                ]);
-                $productId = $app->id();
-                if (!$productId) return false;
-
-                // 2. Tạo phiếu xuất kho phân bổ trong bảng warehouses (tích hợp chuẩn với quy trình pairing-export/import của hệ thống)
-                $app->insert("warehouses", [
+            $ok = $app->action(function () use ($app, $batchId, $batch, $tpStageId, $stock, $craftingId, $crafting, $amount, $storeId, $branchId, $notes, $allocDesc, $userId, $now, $jatbi) {
+                // 1. Tạo phiếu xuất điều chuyển trong warehouses chuẩn quy trình pairing-export
+                $whInsert = [
                     "code" => 'PX',
                     "type" => 'export',
                     "data" => 'pairing',
@@ -1650,73 +1788,193 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     "stores" => $storeId,
                     "branch" => $branchId,
                     "export_status" => 1,
-                    "production_batch" => $batchId,
                     "user" => $userId,
                     "date" => date("Y-m-d"),
+                    "active" => $jatbi->active(30),
                     "date_poster" => $now,
                     "deleted" => 0,
-                ]);
+                ];
+                $app->insert("warehouses", $whInsert);
                 $whOrderId = $app->id();
+                if (!$whOrderId) return false;
 
-                if ($whOrderId) {
-                    $app->insert("warehouses_details", [
-                        "warehouses" => $whOrderId,
-                        "data" => 'pairing',
-                        "type" => 'export',
-                        "products" => $productId,
-                        "amount" => $amount,
-                        "amount_total" => $amount,
-                        "weight_kg" => $weightKg,
-                        "price" => $price,
-                        "cost" => $cost,
-                        "notes" => $notes,
-                        "stores" => $storeId,
-                        "branch" => $branchId,
-                        "user" => $userId,
-                        "date" => $now,
-                        "deleted" => 0,
-                    ]);
+                // 2. Tạo chi tiết trong warehouses_details
+                $whDetail = [
+                    "warehouses" => $whOrderId,
+                    "data" => 'pairing',
+                    "type" => 'export',
+                    "crafting" => $craftingId,
+                    "amount" => $amount,
+                    "amount_total" => $amount,
+                    "price" => $crafting['price'] ?? 0,
+                    "cost" => $crafting['cost'] ?? 0,
+                    "notes" => $notes ?: 'Phân bổ từ QAQC',
+                    "stores" => $storeId,
+                    "branch" => $branchId,
+                    "user" => $userId,
+                    "date" => $now,
+                    "deleted" => 0,
+                ];
+                $app->insert("warehouses_details", $whDetail);
+
+                // 3. Trừ tồn kho trong bảng crafting
+                if ($craftingId > 0) {
+                    $app->update("crafting", [
+                        "amount_total[-]" => $amount,
+                        "amount_export[+]" => $amount,
+                    ], ["id" => $craftingId]);
                 }
 
-                // 3. Ghi phiếu xuất khỏi Kho TP QAQC
+                // 4. Ghi phiếu xuất khỏi Kho TP QAQC (production_stage_movements)
                 $app->insert("production_stage_movements", [
                     "batch" => $batchId, "stage" => $tpStageId, "type" => "export",
-                    "stage_related" => null, "notes" => $allocDesc . " - SKU: $productCode",
+                    "stage_related" => null, "notes" => $allocDesc . ($notes ? " - $notes" : ""),
                     "date" => $now, "user" => $userId, "deleted" => 0,
+                    "crafting" => $craftingId,
                 ]);
                 $exportId = $app->id();
                 if (!$exportId) return false;
 
+                // Trừ số lượng tồn tương ứng trong items
+                $remainToDeduct = $amount;
                 foreach ($stock as $s) {
+                    if ($remainToDeduct <= 0) break;
+                    $deduct = min($remainToDeduct, $s['amount']);
                     $app->insert("production_stage_movement_items", [
                         "movement" => $exportId, "pearl" => $s['pearl'],
-                        "weight_kg" => $s['weight_kg'], "amount" => $s['amount'],
+                        "weight_kg" => 0, "amount" => $deduct,
                         "weight_kg_hao_hut" => 0, "amount_hao_hut" => 0,
                         "deleted" => 0,
                     ]);
+                    $remainToDeduct -= $deduct;
                 }
 
                 return true;
             });
 
             if ($ok) {
-                // Đóng lô nếu đã chuyển toàn bộ
+                // Kiểm tra nếu đã hết tồn kho ở Kho TP thì hoàn thành lô
                 $remainStock = $getBatchStockAtStage($batchId, $tpStageId);
-                if (empty($remainStock)) {
+                $totalRemain = array_sum(array_column($remainStock, 'amount'));
+                if ($totalRemain <= 0) {
                     $app->update("production_batches", ["status" => 'D'], ["id" => $batchId]);
                 }
 
-                $jatbi->logs('products', 'export_from_qaqc', ['batch' => $batchId, 'code' => $productCode, 'stores' => $storeId, 'branch' => $branchId]);
-                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Đã phân bổ thành phẩm xuống Cửa hàng & Quầy thành công!'), 'url' => $_SERVER['HTTP_REFERER']]);
+                $jatbi->logs('warehouses', 'export_qaqc_to_store', ['batch' => $batchId, 'stores' => $storeId, 'branch' => $branchId, 'amount' => $amount]);
+                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Đã phân bổ thành phẩm xuống Cửa hàng & Quầy thành công! Phiếu xuất đã sẵn sàng để quầy tiếp nhận.'), 'url' => $jatbi->url('/qaqc/finish-stock')]);
             } else {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra, vui lòng thử lại')]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra trong quá trình phân bổ kho')]);
             }
         }
     })->setPermissions(['finish_stock.export']);
 
-    // Nhánh 5.3: Xuất vào Kho NL hiện tại (ingredient)
+    // ============================================================
+    // Nhánh 5.2: Xuất bán trực tiếp / sỉ từ Kho TP QAQC
+    // ============================================================
+    $app->router('/export-sell/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
+        $vars['title'] = $jatbi->lang("Xuất bán sỉ / trực tiếp từ Kho QAQC");
+
+        $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
+        if (!$batch) {
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Không tìm thấy lô sản xuất')], $jatbi->ajax());
+            return;
+        }
+
+        $tpStage = $getStageByCode('TP');
+        $tpStageId = $tpStage['id'] ?? 5;
+        $stock = $getBatchStockAtStage($vars['id'], $tpStageId);
+
+        $craftingId = $batch['crafting'] ?? 0;
+        $crafting = null;
+        if ($craftingId > 0) {
+            $crafting = $app->get("crafting", "*", ["id" => $craftingId, "deleted" => 0]);
+        }
+
+        if ($app->method() === 'GET') {
+            if (empty($stock)) {
+                echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn tồn thành phẩm tại Kho TP QAQC')], $jatbi->ajax());
+                return;
+            }
+            $vars['batch'] = $batch;
+            $vars['crafting'] = $crafting;
+            $vars['stock'] = array_values($stock);
+            $vars['total_amount'] = array_sum(array_column($stock, 'amount'));
+            $vars['total_weight_kg'] = array_sum(array_column($stock, 'weight_kg'));
+            echo $app->render($template . '/qaqc/export-sell.html', $vars, $jatbi->ajax());
+        } elseif ($app->method() === 'POST') {
+            $app->header(['Content-Type' => 'application/json']);
+
+            $amount = intval($_POST['amount'] ?? 0);
+            $customerName = trim($app->xss($_POST['customer_name'] ?? ''));
+            $priceSell = floatval($_POST['price_sell'] ?? 0);
+            $notes = $app->xss($_POST['notes'] ?? '');
+
+            $totalStockAmount = array_sum(array_column($stock, 'amount'));
+            if ($amount <= 0 || $amount > $totalStockAmount) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Số lượng xuất bán không hợp lệ (Tối đa: ') . $totalStockAmount . ')']);
+                return;
+            }
+
+            $userId = $app->getSession("accounts")['id'] ?? 0;
+            $now = date('Y-m-d H:i:s');
+            $batchId = $vars['id'];
+
+            $ok = $app->action(function () use ($app, $batchId, $tpStageId, $stock, $craftingId, $amount, $customerName, $priceSell, $notes, $userId, $now) {
+                // 1. Ghi phiếu xuất bán trong production_stage_movements
+                $app->insert("production_stage_movements", [
+                    "batch" => $batchId, "stage" => $tpStageId, "type" => "export",
+                    "stage_related" => null,
+                    "notes" => "Xuất bán sỉ/trực tiếp: " . ($customerName ? "Khách: $customerName - " : "") . "SL: $amount - Đơn giá: " . number_format($priceSell) . " đ" . ($notes ? " ($notes)" : ""),
+                    "date" => $now, "user" => $userId, "deleted" => 0,
+                    "crafting" => $craftingId,
+                ]);
+                $exportId = $app->id();
+                if (!$exportId) return false;
+
+                $remainToDeduct = $amount;
+                foreach ($stock as $s) {
+                    if ($remainToDeduct <= 0) break;
+                    $deduct = min($remainToDeduct, $s['amount']);
+                    $app->insert("production_stage_movement_items", [
+                        "movement" => $exportId, "pearl" => $s['pearl'],
+                        "weight_kg" => 0, "amount" => $deduct,
+                        "weight_kg_hao_hut" => 0, "amount_hao_hut" => 0,
+                        "deleted" => 0,
+                    ]);
+                    $remainToDeduct -= $deduct;
+                }
+
+                // 2. Trừ tồn kho trong crafting nếu có
+                if ($craftingId > 0) {
+                    $app->update("crafting", [
+                        "amount_total[-]" => $amount,
+                        "amount_export[+]" => $amount,
+                    ], ["id" => $craftingId]);
+                }
+
+                return true;
+            });
+
+            if ($ok) {
+                $remainStock = $getBatchStockAtStage($batchId, $tpStageId);
+                $totalRemain = array_sum(array_column($remainStock, 'amount'));
+                if ($totalRemain <= 0) {
+                    $app->update("production_batches", ["status" => 'D'], ["id" => $batchId]);
+                }
+
+                $jatbi->logs('production_batches', 'export_sell', ['batch' => $batchId, 'amount' => $amount, 'customer' => $customerName]);
+                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Xuất bán thành công!'), 'url' => $_SERVER['HTTP_REFERER']]);
+            } else {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra trong quá trình xuất bán')]);
+            }
+        }
+    })->setPermissions(['finish_stock.export']);
+
+    // ============================================================
+    // Nhánh 5.3: Xuất trả ngọc nguyên liệu vào Kho NL (ingredient)
+    // ============================================================
     $app->router('/export-ingredient/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode, $getBatchStockAtStage) {
-        $vars['title'] = $jatbi->lang("Xuất vào Kho Nguyên Liệu");
+        $vars['title'] = $jatbi->lang("Xuất trả vào Kho Nguyên Liệu");
 
         $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
         if (!$batch) {
@@ -1779,15 +2037,16 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             $batchId = $vars['id'];
 
             $ok = $app->action(function () use ($app, $batchId, $tpStageId, $cleanLines, $notes, $userId, $now) {
-                // 1. Tạo bản ghi mới trong bảng ingredient cho từng loại ngọc
+                // 1. Tạo bản ghi mới trong bảng ingredient cho từng loại ngọc (type = 2: ngọc)
                 foreach ($cleanLines as $cl) {
                     $app->insert("ingredient", [
                         "code" => $cl['code'],
                         "name_ingredient" => $cl['name_ingredient'],
                         "pearl" => $cl['pearl'],
+                        "type" => 2, // 2: ngọc
                         "amount" => $cl['amount'],
                         "weight_kg" => $cl['weight_kg'],
-                        "notes" => $notes,
+                        "notes" => "Nhận trả từ Lô QAQC #" . $batchId . ($notes ? " - $notes" : ""),
                         "status" => 'A',
                         "date" => $now,
                         "user" => $userId,
@@ -1798,7 +2057,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 // 2. Ghi phiếu xuất khỏi Kho TP QAQC
                 $app->insert("production_stage_movements", [
                     "batch" => $batchId, "stage" => $tpStageId, "type" => "export",
-                    "stage_related" => null, "notes" => "Xuất vào Kho Nguyên Liệu: $notes",
+                    "stage_related" => null, "notes" => "Xuất trả vào Kho Nguyên Liệu: $notes",
                     "date" => $now, "user" => $userId, "deleted" => 0,
                 ]);
                 $exportId = $app->id();
@@ -1817,9 +2076,9 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             });
 
             if ($ok) {
-                // Đóng lô nếu đã xuất hết
                 $remainStock = $getBatchStockAtStage($batchId, $tpStageId);
-                if (empty($remainStock)) {
+                $totalRemain = array_sum(array_column($remainStock, 'amount'));
+                if ($totalRemain <= 0) {
                     $app->update("production_batches", ["status" => 'D'], ["id" => $batchId]);
                 }
 

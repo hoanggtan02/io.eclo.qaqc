@@ -1,0 +1,143 @@
+<div class="modal fade modal-load" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content rounded-4 shadow">
+            <div class="modal-body p-4" id="print-area">
+                <div class="row mb-4">
+                    <div class="col-6">
+                        <h6 class="fw-bold text-uppercase p-0 m-0">CÔNG TY TNHH MỘT THÀNH VIÊN NGỌC TRAI NGỌC HIỀN PHÚ QUỐC</h6>
+                        </div>
+                    <div class="col-6 text-center">
+                        <strong class="d-block">Mẫu số 01 - VT</strong>
+                        <p><i>(Ban hành theo Thông tư số 133/2016/TT-BTC Ngày 26/08/2016 của bộ Tài Chính)</i></p>
+                    </div>
+                </div>
+
+                <div class="text-center mb-4">
+                    <?php 
+                        $type_text = 'PHIẾU CHẾ TÁC';
+                        if($data['type'] == 'import' || $data['type'] == 'import_split') $type_text = 'PHIẾU NHẬP NGUYÊN LIỆU';
+                        if($data['type'] == 'pairing' || $data['type'] == 'export_crafting' || $data['type']=='export') $type_text = 'PHIẾU XUẤT NGUYÊN LIỆU';
+                        if($data['type'] == 'cancel') $type_text = 'PHIẾU HỦY NGUYÊN LIỆU';
+                    ?>
+                    <h4 class="fw-bold my-2"><?=$type_text?></h4>
+                    <p class="mb-0"><i>Ngày <?=date('d', strtotime($data['date']))?> tháng <?=date('m', strtotime($data['date']))?> năm <?=date('Y', strtotime($data['date']))?></i></p>
+                </div>
+
+                <div class="row mb-3 small">
+                    <div class="col-6">
+                        <p class="mb-1"><strong>Mã:</strong> #<?=$data['code'] . $data['id']?></p>
+                        <p class="mb-0"><strong>Nội dung:</strong> <?=htmlspecialchars($data['content'])?></p>
+                    </div>
+                    <div class="col-6">
+                        <p class="mb-1"><strong>Tài khoản:</strong> <?=$data['user_name']?></p>
+                        <p class="mb-0">
+                                    <strong>Trạng thái:</strong> 
+                                    <?php 
+                                        $status_text = '';
+                                        $status_class = '';
+                                        switch ($data['type']) {
+                                            case 'import':
+                                            case 'import_split':
+                                                $status_text = $jatbi->lang('Đã nhập hàng');
+                                                $status_class = 'text-primary';
+                                                break;
+                                            case 'pairing':
+                                            case 'export':
+                                            case 'export_crafting':
+                                                $status_text = $jatbi->lang('Xuất nguyên liệu');
+                                                $status_class = 'text-primary';
+                                                break;
+                                            case 'cancel':
+                                                $status_text = $jatbi->lang('Đã hủy hàng');
+                                                $status_class = 'text-danger';
+                                                break;
+                                            default:
+                                                $status_text = $jatbi->lang('Không xác định');
+                                                $status_class = 'text-secondary';
+                                                break;
+                                        }
+                                    ?>
+                                <span class="fw-bold p-1 rounded-3 small <?=$status_class?>"><?=$status_text?></span>
+                        </p>                    
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle">
+                        <thead class="table-light text-center">
+                            <tr>
+                                <th class="text-center" style="width: 1%;">STT</th>
+                                <th class="text-center">Nguyên liệu</th>
+                                <th class="text-center">Đơn giá</th>
+                                <th class="text-center">Số lượng</th>
+                                <th class="text-center">Đơn vị</th>
+                                <th class="text-center">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $stt = 0; $total_amount = 0; $total_price = 0; ?>
+                            <?php foreach ($data['details'] as $item): ?>
+                                <?php 
+                                    $stt++;
+                                    $line_total = ($item['amount'] ?? 0) * ($item['price'] ?? 0);
+                                    $total_amount += $item['amount'] ?? 0;
+                                    $total_price += $line_total;
+                                ?>
+                                <tr>
+                                    <td class="text-center"><?=$stt?></td>
+                                    <td class="text-center"><?=$item['ingredient_code'] ?? 'N/A'?></td>
+                                    <td class="text-center"><?=number_format($item['price'] ?? 0)?></td>
+                                    <td class="text-center"><?=number_format($item['amount'] ?? 0, 2)?></td>
+                                    <td class="text-center"><?=$item['unit_name'] ?? 'N/A'?></td>
+                                    <td class="text-end fw-bold"><?=number_format($line_total)?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold">
+                                <td colspan="3" class="text-end">Tổng cộng</td>
+                                <td class="text-center"><?=number_format($total_amount, 2)?></td>
+                                <td></td>
+                                <td class="text-end"><?=number_format($total_price)?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="row mt-3 small">
+                    <div class="col-12">
+                        <p class="mb-1"><strong>Tổng số tiền (Viết bằng chữ):</strong> </p>
+                        <p><strong>Số chứng từ gốc kèm theo:</strong></p>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-6"></div>
+                    <div class="col-6 text-end pe-1">
+                         <i>Ngày .... Tháng .... Năm .....</i>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-4 text-center">
+                        <h6 class="fw-bold">Người Lập</h6>
+                        <p class="small"><i>(Ký, họ tên)</i></p>
+                        <div style="height: 80px;"></div>
+                        <p class="fw-bold"><?=$data['user_name']?></p>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h6 class="fw-bold">Thủ Kho</h6>
+                        <p class="small"><i>(Ký, họ tên)</i></p>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h6 class="fw-bold">Người Nhận</h6>
+                        <p class="small"><i>(Ký, họ tên)</i></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-print-none border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal"><?=$jatbi->lang('Hủy')?></button>
+                <button class="btn btn-success rounded-pill px-4 btn-print" ><i class="ti ti-printer me-2"></i> <?=$jatbi->lang('IN')?></button>
+            </div>
+        </div>
+    </div>
+</div>

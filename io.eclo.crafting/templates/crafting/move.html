@@ -1,0 +1,129 @@
+<div class="container-fluid pjax-content-load">
+    <div class="mb-3">
+        <h4 class="mb-0 fw-bold text-body"><?=$title?></h4>
+        <ul class="breadcrumb small mb-0">
+            <li class="breadcrumb-item small"><a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+            <li class="breadcrumb-item small text-body" aria-current="page"><?=$title?></li>
+        </ul>
+    </div>
+    <div class="row g-3">
+        <div class="col-lg-3">
+            <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+                <div class="card-body">
+                    <?=$app->component('input', ['placeholder' => 'Kho chế tác chuyển', 'value' => $data['name'] ?? '', 'disabled' => true])?>
+                    <?=$app->component('select', [
+                        'name' => 'crafting_to', 'placeholder' => 'Kho chế tác nhận', 'required' => true,
+                        'options' => [
+                            ['value' => 0, 'text' => $jatbi->lang('Chọn')],
+                            ['value' => 1, 'text' => $jatbi->lang('Kho chế tác Vàng')],
+                            ['value' => 2, 'text' => $jatbi->lang('Kho chế tác Bạc')],
+                            ['value' => 3, 'text' => $jatbi->lang('Kho chế tác Chuỗi')],
+                        ],
+                        'selected' => $data['crafting_to'] ?? '',
+                        'attr' => 'data-action="change" data-url="/crafting/crafting-from-to/update/'.$action.'/crafting_to" data-form=\'{"value":"this.val"}\''
+                    ])?>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-9">
+            <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+                <div class="card-body">
+                    <!-- <?=$app->component('select', [
+                        'name' => 'ingredient', 'placeholder' => $jatbi->lang("Thêm nguyên liệu"), 'required' => true,
+                        'multiple' => true, 'options' => $ingredient_options ?? [],
+                        'attr' => 'data-action="change" data-load="this" data-url="/crafting/crafting-from-to/update/'.$action.'/ingredient/add" data-form=\'{"value":"this.val"}\''
+                    ])?> -->
+                    <div class="bg-body rounded-pill p-2 d-flex justify-content-center align-items-center"
+                    data-pos-table>
+                        <i class="ti ti-search fs-3 ms-2"></i>
+                        <div class="w-100" data-search="true" data-url="/api/ingredient-search/<?=$action ?>/<?=$stock_column ?>">
+                            <input type="text"
+                                class="form-control bg-transparent border-0 shadow-none py-3 w-100"
+                                placeholder="Tìm kiếm nguyên liệu">
+                            <div class="search-results-box rounded-4 shadow bg-body border-0 position-absolute max-height scroll-y w-100 z-3"
+                                style="--max-height:300px;"></div>
+                            <template class="search-item-template">
+                                <div class="search-item border-0 py-2 btn text-start position-relative"
+                                    style="display: flex; align-items: center; gap: 10px;">
+                                    <div data-attr-products="value">
+                                        <strong data-name="text"></strong><br>
+                                        <a data-action="click" data-load="this"
+                                            data-selector="[data-pos-table]"
+                                            data-attr-url="url-3" class="stretched-link" href="#!"></a>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-hover align-middle" data-pos-table>
+                            <thead class="table-light">
+                                <tr>
+                                    <th><?=$jatbi->lang('Loại')?></th><th><?=$jatbi->lang('Mã SP')?></th>
+                                    <th class="text-center"><?=$jatbi->lang('Tồn kho')?></th>
+                                    <th class="text-center" style="width:10%"><?=$jatbi->lang('Số lượng')?></th>
+                                    <th class="text-center"><?=$jatbi->lang('Đơn vị')?></th>
+                                    <th class="text-end"><?=$jatbi->lang('Giá bán')?></th>
+                                    <th class="text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                                    <th style="width:15%"><?=$jatbi->lang('Ghi chú')?></th><th style="width:1%"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php $sum_sl = 0; foreach ($SelectProducts ?? [] as $key => $item): ?>
+                                    <?php $sum_sl += ($item['amount'] ?? 0); ?>
+                                    <tr>
+                                        <td><?php if($item['ingredient_type']==1) echo 'Dây'; elseif($item['ingredient_type']==2) echo 'Ngọc'; else echo 'Khác'; ?></td>
+                                        <td><?=$item['code']?></td>
+                                        <td class="text-center"><?=number_format($item['warehouses'] ?? 0, 1)?></td>
+                                        <td>
+                                            <input type="number" 
+                                                class="form-control text-center" 
+                                                value="<?=$item['amount'] ?? ''?>" 
+                                                data-load="this" 
+                                                data-action="change" 
+                                                data-url="/crafting/crafting-from-to/update/<?=$action?>/ingredient/amount/<?=$key?>" 
+                                                data-form='{"value":"this.val"}'>
+                                        </td>
+                                        <td class="text-center"><?=$item['unit_name']?></td>
+                                        <td class="text-end"><?=number_format($item['price'] ?? 0)?></td>
+                                        <td class="text-end fw-bold"><?=number_format(($item['price'] ?? 0) * ($item['amount'] ?? 0))?></td>
+                                        <td>
+                                            <input type="text" 
+                                                class="form-control" 
+                                                value="<?=$item['notes'] ?? ''?>" 
+                                                data-action="blur" 
+                                                data-url="/crafting/crafting-from-to/update/<?=$action?>/ingredient/notes/<?=$key?>" 
+                                                data-form='{"value":"this.val"}'>
+                                        </td>
+                                        <td class="text-center"><a class="btn btn-link text-danger p-0" data-action="click" data-selector="[data-pos-table]" data-load="this" data-url="/crafting/crafting-from-to/update/<?=$action?>/ingredient/deleted/<?=$key?>"><i class="ti ti-trash"></i></a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-bold table-light">
+                                    <td colspan="3" class="text-end"><?=$jatbi->lang('Tổng cộng')?></td>
+                                    <td class="text-center"><?=number_format($sum_sl, 1)?></td>
+                                    <td colspan="5"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                     <div class="mt-3">
+                        <?=$app->component('textarea', [
+                            "name" => 'content', 
+                            "placeholder" => "Nội dung", 
+                            "value" => $data['content'] ?? '', 
+                            "rows" => 3, 
+                            "required" => true ,
+                            "attr" => 'data-action="blur" data-url="/crafting/crafting-from-to/update/'.$action.'/content" data-form=\'{"value": "this.val"}\''
+                        ])?>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0 py-3 text-end">
+                    <button class="btn btn-eclo-light rounded-pill px-4" data-action="click" data-selector="[data-pos-table]" data-load="this" data-url="/crafting/crafting-from-to/update/<?=$action?>/cancel"><?=$jatbi->lang('Hủy')?></button>
+                    <button class="btn btn-eclo rounded-pill px-5 ms-2" data-action="click" data-load="/crafting/crafting-export-history/<?=$type?>" data-url="/crafting/crafting-from-to/update/<?=$action?>/completed"><?=$jatbi->lang('Hoàn tất')?></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

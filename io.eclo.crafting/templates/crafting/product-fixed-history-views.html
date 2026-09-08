@@ -1,0 +1,102 @@
+<div class="modal fade modal-load" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background-color: white;">
+            <div class="modal-header d-print-none">
+                <h5 class="modal-title">
+                    <?php echo htmlspecialchars($title); ?>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; justify-content: space-between; color:#000;">
+                    <div style="text-transform: uppercase; width: 60%;">
+                        <h6 class="p-0 m-0 fw-bold">CÔNG TY TNHH MỘT THÀNH VIÊN NGỌC TRAI NGỌC HIỀN PHÚ QUỐC</h6>
+                    </div>
+                    <div class="text-center" style="width: 40%;">
+                        <strong>Mẫu số 01 - VT</strong>
+                        <h6 class="small"><i>(Ban hành theo Thông tư số 133/2016/TT-BTC)</i></h6>
+                    </div>
+                </div>
+                <div class="text-center my-3" style="color:#000;">
+                    <?php if ($data['type'] == 'import') { ?>
+                    <h4 style="color:#000; font-weight: bold;">PHIẾU NHẬP KHO SỬA CHẾ TÁC</h4>
+                    <?php } elseif ($data['type'] == 'remove') { ?>
+                    <h4 style="color:#000; font-weight: bold;">PHIẾU CHUYỂN KHO HÀNG LỖI</h4>
+                    <?php } else { ?>
+                    <h4 style="color:#000; font-weight: bold;">PHIẾU KHO</h4>
+                    <?php } ?>
+                    <h6><i>
+                            <?php echo $jatbi->lang('Ngày'); ?>:
+                            <?php echo date('d/m/Y', strtotime($data['date'])); ?>
+                        </i></h6>
+                </div>
+                <div class="row mt-3" style="color:#000;">
+                    <div class="col-lg-6 mb-2"><strong>Mã phiếu:</strong> #<?php echo htmlspecialchars($data['code'] . $data['id']); ?></div>
+                    <div class="col-lg-6 mb-2"><strong>Ngày tạo:</strong> <?php echo date('d/m/Y H:i', strtotime($data['date_poster'])); ?></div>
+                    <div class="col-lg-6 mb-2"><strong>Tài khoản:</strong> <?php echo htmlspecialchars($data['user_name']); ?></div>
+                    <div class="col-lg-6 mb-2"><strong>Nội dung:</strong> <?php echo htmlspecialchars($data['content']); ?></div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm table-hover table-striped table-bordered align-middle" style="color:#000;">
+                        <thead class="table-light text-center text-uppercase small fw-bold">
+                            <tr>
+                                <th class="p-2">Sản phẩm</th>
+                                <th class="p-2" width="15%">Đơn giá</th>
+                                <th class="p-2" width="10%">Số lượng</th>
+                                <th class="p-2">Đơn vị</th>
+                                <th class="p-2" width="18%">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($details as $item): ?>
+                            <tr>
+                                <td class="p-2">
+                                    <strong><?php echo htmlspecialchars($item['product_code']); ?></strong><br>
+                                    <small><?php echo htmlspecialchars($item['product_name']); ?></small>
+                                </td>
+                                <td class="p-2 text-end"><?php echo number_format($item['price']); ?></td>
+                                <td class="p-2 text-center"><?php echo number_format($item['amount']); ?></td>
+                                <td class="p-2 text-center"><?php echo htmlspecialchars($item['unit_name']); ?></td>
+                                <td class="p-2 text-end fw-bold"><?php echo number_format($item['price'] * $item['amount']); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td colspan="2" class="p-2 text-end">TỔNG CỘNG</td>
+                                <td class="p-2 text-center"><?=number_format($total_amount)?></td>
+                                <td></td>
+                                <td class="p-2 text-end text-danger"><?=number_format($grand_total)?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="mt-4">
+                    <table style="width: 100%; color:#000;">
+                        <tr>
+                            <td style="width: 33%; text-align: center;"><strong>Người Lập</strong></td>
+                            <td style="width: 33%; text-align: center;"><strong>Thủ Kho</strong></td>
+                            <td style="width: 33%; text-align: center;"><strong>Người Nhận</strong></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center;"><i>(Ký, họ tên)</i></td>
+                            <td style="text-align: center;"><i>(Ký, họ tên)</i></td>
+                            <td style="text-align: center;"><i>(Ký, họ tên)</i></td>
+                        </tr>
+                        <tr style="height: 80px;">
+                            <td class="text-center align-bottom"><?php echo htmlspecialchars($data['user_name']); ?></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-print-none border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal"><?=$jatbi->lang('Đóng')?></button>
+                <button class="btn btn-success rounded-pill px-4 btn-print"><i class="ti ti-printer me-2"></i><?=$jatbi->lang('IN PHIẾU')?></button>
+            </div>
+        </div>
+    </div>
+</div>

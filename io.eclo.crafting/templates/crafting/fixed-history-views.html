@@ -1,0 +1,60 @@
+<div class="modal fade modal-load" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><?=$title?></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-lg-6 mb-3"><strong><?=$jatbi->lang('Số phiếu')?>:</strong> #<?=$data['id']?></div>
+                    <div class="col-lg-6 mb-3"><strong><?=$jatbi->lang('Ngày')?>:</strong> <?=$jatbi->datetime($data['date'])?></div>
+                    <div class="col-lg-12 mb-3"><strong><?=$jatbi->lang('Tài khoản')?>:</strong> <?=$data['user_name']?></div>
+                    <div class="col-lg-12 mb-3"><strong><?=$jatbi->lang('Sửa chế tác')?>:</strong> <?=$data['product_code_old']?> -> <?=$data['code']?></div>
+                    <div class="col-lg-12 mb-3"><strong><?=$jatbi->lang('Số lượng')?>:</strong> <?=number_format($data['amount'])?></div>
+                    <div class="col-lg-12 mb-3"><strong><?=$jatbi->lang('Nội dung')?>:</strong> <?=$data['notes']?></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="1%">STT</th>
+                                <th><?=$jatbi->lang('Nguyên liệu')?></th>
+                                <th class="text-end"><?=$jatbi->lang('Đơn giá')?></th>
+                                <th class="text-center"><?=$jatbi->lang('Số lượng')?></th>
+                                <th><?=$jatbi->lang('Đơn vị')?></th>
+                                <th class="text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $total = 0; $stt = 0;
+                            foreach ($details as $item):
+                                $total_price = ($item['amount'] ?? 0) * ($item['price'] ?? 0);
+                                $total += $total_price; $stt++;
+                            ?>
+                            <tr>
+                                <td class="text-center"><?=$stt?></td>
+                                <td><?=$item['ingredient_code']?></td>
+                                <td class="text-end"><?=number_format($item['price'] ?? 0)?></td>
+                                <td class="text-center"><?=number_format($item['amount'] ?? 0)?></td>
+                                <td><?=$item['unit_name']?></td>
+                                <td class="text-end fw-bold"><?=number_format($total_price)?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot class="fw-bold">
+                            <tr>
+                                <td colspan="5" class="text-end"><?=$jatbi->lang('Tổng cộng')?></td>
+                                <td class="text-end text-primary"><?=number_format($total)?></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?=$jatbi->lang('Đóng')?></button>
+            </div>
+        </div>
+    </div>
+</div>

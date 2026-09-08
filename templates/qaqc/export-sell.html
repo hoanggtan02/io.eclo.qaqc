@@ -1,4 +1,4 @@
-﻿<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-md pt-standalone">
         <div class="modal-content rounded-5 border-0 shadow-lg">
             <div class="d-flex w-100 justify-content-end align-items-center position-relative">
@@ -14,55 +14,53 @@
                     <?=$title?>
                 </h5>
                 <div class="small text-secondary mb-3">
-                    <?=$jatbi->lang("Mã lô")?>: <span class="fw-semibold text-body"><?=htmlspecialchars($batch['code'])?></span>
-                    · <span class="badge bg-success"><?=$jatbi->lang("Nhánh 5.1: Xuất bán")?></span>
+                    <?=$jatbi->lang("Mã lô")?>: <span class="fw-semibold text-body">#<?=htmlspecialchars($batch['code'])?></span>
+                    · <span class="badge bg-success"><?=$jatbi->lang("Xuất bán sỉ / trực tiếp")?></span>
                 </div>
 
                 <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-export-sell">
-                    <?php foreach ($stock as $s) { ?>
-                    <div class="border rounded-4 p-3 mb-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-semibold"><?=htmlspecialchars($s['pearl_name'] ?? $jatbi->lang("Không xác định"))?></span>
-                            <span class="small text-secondary">
-                                <?=$jatbi->lang("Tồn kho TP")?>: <span class="fw-bold text-success"><?=number_format($s['amount'])?> <?=$jatbi->lang("viên")?></span>
-                                <?php if ($s['weight_kg'] > 0) { ?> (<?=number_format($s['weight_kg'], 2)?> kg)<?php } ?>
-                            </span>
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên xuất bán")?> <span class="text-danger">*</span></label>
-                                <input type="number" step="1" min="1" max="<?=$s['amount']?>" class="form-control rounded-4"
-                                    name="lines[<?=$s['pearl']?>][amount]" value="<?=$s['amount']?>" required>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Kg xuất (nếu có)")?></label>
-                                <input type="number" step="0.01" min="0" max="<?=$s['weight_kg']?>" class="form-control rounded-4"
-                                    name="lines[<?=$s['pearl']?>][weight_kg]" value="<?=$s['weight_kg']?>">
-                            </div>
-                        </div>
+                    <!-- THÔNG TIN THÀNH PHẨM -->
+                    <?php if ($crafting) { ?>
+                    <div class="card border rounded-4 p-3 mb-3 bg-light bg-opacity-50">
+                        <div class="small text-secondary"><?=$jatbi->lang("Thành phẩm")?>:</div>
+                        <div class="fw-bold text-primary fs-6">[<?=htmlspecialchars($crafting['code'])?>] <?=htmlspecialchars($crafting['name'])?></div>
+                        <div class="small text-muted"><?=$jatbi->lang("Giá niêm yết")?>: <?=number_format($crafting['price'])?> VNĐ</div>
                     </div>
                     <?php } ?>
 
-                    <div class="mb-3">
-                        <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tên khách hàng / Đối tác mua")?></label>
-                        <input type="text" name="customer_name" class="form-control rounded-4" placeholder="<?=$jatbi->lang("Nhập tên khách hàng...")?>">
+                    <div class="card border rounded-4 p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small text-secondary"><?=$jatbi->lang("Tồn kho QAQC sẵn sàng")?>:</span>
+                            <span class="fw-bold text-danger fs-6"><?=$total_amount?> <?=$jatbi->lang("viên")?></span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số lượng xuất bán")?> <span class="text-danger">*</span></label>
+                                <input type="number" step="1" min="1" max="<?=$total_amount?>" name="amount" class="form-control rounded-4 fw-bold" value="<?=$total_amount?>" required>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tổng giá trị bán (VNĐ)")?></label>
-                        <input type="number" step="1000" min="0" name="total_price" class="form-control rounded-4" placeholder="0">
+                        <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tên khách hàng / Đối tác mua sỉ")?> <span class="text-danger">*</span></label>
+                        <input type="text" name="customer_name" class="form-control rounded-4" placeholder="<?=$jatbi->lang("Nhập tên khách hàng...")?>" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Đơn giá bán thực tế (VNĐ / viên hoặc chiếc)")?></label>
+                        <input type="number" step="1000" min="0" name="price_sell" class="form-control rounded-4" value="<?=$crafting['price'] ?? 0?>">
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Ghi chú xuất bán")?></label>
-                        <textarea name="notes" class="form-control rounded-4" rows="2" placeholder="<?=$jatbi->lang("Ghi chú đơn hàng / phiếu xuất...")?>"></textarea>
+                        <textarea name="notes" class="form-control rounded-4" rows="2" placeholder="<?=$jatbi->lang("Ghi chú hợp đồng, phương thức thanh toán...")?>"></textarea>
                     </div>
 
                     <div class="col-lg-12 mt-3">
                         <button type="submit" class="btn btn-success w-100 py-3 rounded-pill fw-bold"
                             data-action="submit" data-alert="true" data-load="this">
-                            <i class="ti ti-shopping-cart me-1"></i>
-                            <?=$jatbi->lang("Xác nhận xuất bán trực tiếp")?>
+                            <i class="ti ti-cash me-1"></i>
+                            <?=$jatbi->lang("Xác nhận xuất bán")?>
                         </button>
                     </div>
                 </form>

@@ -1,0 +1,73 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1">
+    <div class="modal-dialog modal-lg pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="modal-title mb-3"><?=$title?></h5>
+
+                <!-- PHẦN THÔNG TIN CHUNG -->
+                <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4 mb-4">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Mã')?>:</strong> #<?=$data['product_code']?></div>
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Ngày chuyển')?>:</strong> <?=date('d/m/Y', strtotime($data['date']))?></div>
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Danh mục')?>:</strong> <?=$data['category_name']?></div>
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Nhóm sản phẩm')?>:</strong> <?=$data['group_name']?></div>
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Số lượng')?>:</strong> <?=$data['amount']?></div>
+                            <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Giá bán')?>:</strong> <?=number_format($data['price'])?></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- DANH SÁCH NGUYÊN LIỆU -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped table-bordered align-middle">
+                        <thead>
+                            <tr>
+                                <th class="align-middle"><?=$jatbi->lang('Nguyên liệu')?></th>
+                                <th class="align-middle text-center" width="10%"><?=$jatbi->lang('Số lượng')?></th>
+                                <th class="align-middle text-center"><?=$jatbi->lang('Số lượng chế tác')?></th>
+                                <th class="align-middle"><?=$jatbi->lang('Đơn vị')?></th>
+                                <th class="align-middle text-center"><?=$jatbi->lang('Giá bán')?></th>
+                                <th class="align-middle text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                                <!-- <th class="align-middle" width="10%"><?=$jatbi->lang('Ghi chú')?></th> -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($details)) { foreach ($details as $detail) { ?>
+                            <tr>
+                                <td class="p-2">
+                                    <strong><?=$detail['ingredient_code']?></strong>
+                                    <?php if($detail['ingredient_type'] == 1){?>
+                                        <p class="mb-0 small text-muted"><?=$jatbi->lang('Nhóm sản phẩm')?>: <?=$detail['group_name']?></p>
+                                        <p class="mb-0 small text-muted"><?=$jatbi->lang('Danh mục')?>: <?=$detail['category_name']?></p>
+                                    <?php } elseif($detail['ingredient_type'] == 2){?>
+                                        <p class="mb-0 small text-muted"><?=$jatbi->lang('Loại ngọc')?>: <?=$detail['pearl_name']?></p>
+                                        <p class="mb-0 small text-muted"><?=$jatbi->lang('Màu sắc')?>: <?=$detail['color_name']?></p>
+                                        <p class="mb-0 small text-muted"><?=$jatbi->lang('Li ngọc')?>: <?=$detail['size_name']?></p>
+                                    <?php } ?>
+                                </td>
+                                <td class="p-2 text-center"><?=$detail['amount']?></td>
+                                <td class="p-2 text-center"><?=($detail['amount'] * $data['amount'])?></td>
+                                <td class="p-2"><?=$detail['unit_name']?></td>
+                                <td class="p-2 text-center"><?=number_format($detail['price'])?></td>
+                                <td class="p-2 text-end"><?=number_format($detail['total'])?></td>
+                                <!-- <td class="p-2"><?=$detail['notes']?></td> -->
+                            </tr>
+                            <?php } } else { ?>
+                                <tr><td colspan="7" class="text-center"><?=$jatbi->lang('Không có dữ liệu')?></td></tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

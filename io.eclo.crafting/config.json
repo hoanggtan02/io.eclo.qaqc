@@ -1,0 +1,9 @@
+{
+    "name": "Crafting",
+    "version": "1.0.1",
+    "install" : "true",
+    "id": "io.eclo.crafting",
+    "author": "ECLO",
+    "description": "Chế tác",
+    "requires": "1.0.1"
+}

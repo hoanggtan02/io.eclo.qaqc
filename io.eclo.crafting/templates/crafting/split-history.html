@@ -1,0 +1,78 @@
+<div class="container-fluid mt-4">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="/"
+                        class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+        <div class="filter-search">
+            <div class="d-flex align-items-center justify-content-end">
+                <div class="dropdown">
+                    <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill small d-flex align-items-center"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                        <i class="ti ti-filter fs-5 me-2"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                        style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                        <div class="fw-semibold py-2 px-3">
+                            <?=$jatbi->lang("Điều kiện lọc")?>
+                        </div>
+                        <div class="px-3">
+
+                            <?=$app->component('select', [
+                                "name" => 'user',
+                                "placeholder" => $jatbi->lang('Tài khoản'),
+                                "class" => "filter-name",
+                                "options" => $accounts ?? [],
+                                "selected" => $_GET['user'] ?? ''
+                            ])?>
+
+                            <?=$app->component('input',[
+                                "name"=>'date',
+                                "placeholder"=>$jatbi->lang("Ngày"),
+                                "value" => $app->xss($_GET['date'] ?? (date('01/m/Y') . ' - ' . date('d/m/Y'))),
+                                "class" => 'filter-name',
+                                "attr" => 'data-width="100%" data-datepicker',
+                            ])?>
+
+                        </div>
+
+                        <hr class="border-secondary border-opacity-50 my-2">
+                        <div class="px-3 py-2 text-end w-100">
+                            <button type="button"
+                                class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                            <button type="button"
+                                class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="id"><?=$jatbi->lang("Số phiếu")?></th>
+                        <th data-name="product"><?=$jatbi->lang("Sản phẩm")?></th>
+                        <th data-name="content"><?=$jatbi->lang("Nội dung")?></th>
+                        <th data-name="date"><?=$jatbi->lang("Ngày")?></th>
+                        <th data-name="user"><?=$jatbi->lang("Tài khoản")?></th>
+                        <th data-name="action" data-orderable="false" class="text-end"></th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>

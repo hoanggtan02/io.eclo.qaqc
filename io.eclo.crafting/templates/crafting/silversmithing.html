@@ -1,0 +1,163 @@
+<div class="container-fluid">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0">
+                <li class="breadcrumb-item small">
+                    <a href="/" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
+                </li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+        <div class="filter-search">
+            <div class="d-flex align-items-center justify-content-end">
+                <div class="dropdown">
+                    <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill small d-flex align-items-center"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                        <i class="ti ti-filter fs-5 me-2"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                        style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                        <div class="fw-semibold py-2 px-3">
+                            <?=$jatbi->lang("Điều kiện lọc")?>
+                        </div>
+                        <div class="px-3">
+                            <?=$app->component('select-status',[
+                                    "placeholder" => $jatbi->lang('Trạng thái'),
+                                    "class" => "filter-name",
+                                    "value" => $_GET['status'] ?? '',
+                                ])?>
+
+                            <?=$app->component('select', [
+                                    "name" => 'group',
+                                    "placeholder" => $jatbi->lang('Nhóm sản phẩm'),
+                                    "class" => "filter-name",
+                                    "options" => $groups ?? [],
+                                    "selected" => $_GET['group'] ?? ''
+                                ])?>
+
+                            <?=$app->component('select', [
+                                    "name" => 'categorys',
+                                    "placeholder" => $jatbi->lang('Danh mục'),
+                                    "class" => "filter-name",
+                                    "options" => $categorys ?? [],
+                                    "selected" => $_GET['categorys'] ?? ''
+                                ])?>
+
+                            <?=$app->component('select', [
+                                    "name" => 'units',
+                                    "placeholder" => $jatbi->lang('Đơn vị'),
+                                    "class" => "filter-name",
+                                    "options" => $units ?? [],
+                                    "selected" => $_GET['units'] ?? ''
+                                ])?>
+
+
+                        </div>
+                        <hr class="border-secondary border-opacity-50 my-2">
+                        <div class="px-3 py-2 text-end w-100">
+                            <button type="button"
+                                class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                            <button type="button"
+                                class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <?php if($jatbi->permission(['silversmithing.delete']) == 'true' || $jatbi->permission(['silversmithing.add']) == 'true'){ ?>
+    <div class="position-fixed bottom right z-3 dropup-center dropup" style="--bottom:40px;--right:20px">
+        <button class="btn btn-eclo rounded-circle width height d-flex align-items-center justify-content-center "
+            style="--width:70px;--height:70px;" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="ti ti-menu-2 fs-1" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu min-width bg-transparent border-0 justify-content-center p-2" style="--min-width:100%">
+            <?php if($jatbi->permission(['silversmithing.delete']) == 'true'){ ?>
+            <li class="my-2">
+                <a class="btn rounded-circle btn-danger width height d-flex justify-content-center align-items-center p-1"
+                    data-action="modal-confirm" data-checkbox="input.checker" data-url="/crafting/silversmithing-delete"
+                    style="--width:50px;--height:50px;">
+                    <i class="ti ti-trash fs-3" aria-hidden="true"></i>
+                </a>
+            </li>
+            <?php } ?>
+            <?php if($jatbi->permission(['silversmithing.add']) == 'true'){ ?>
+            <li class="my-2">
+                <a class="btn rounded-circle btn-warning width height d-flex justify-content-center align-items-center p-1 pjax-load"
+                    href="/crafting/pairing-import/silver" style="--width:50px;--height:50px;">
+                    <i class="ti ti-plus fs-3" aria-hidden="true"></i>
+                </a>
+            </li>
+            <?php } ?>
+        </ul>
+    </div>
+    <?php } ?>
+
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <div class="custom-buttons d-none">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-eclo dropdown-toggle" data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                        <i class="ti ti-report"></i> <?=$jatbi->lang('Xuất kho')?>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end border-0 bg-blur shadow-lg rounded-4"
+                        style="--blur:10px;">
+                        <li>
+                            <a class="dropdown-item" href="/crafting/pairing-export/silver">
+                                <?=$jatbi->lang('Xuất kho')?>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="/crafting/pairing-export-history">
+                                <?=$jatbi->lang('Lịch sử xuất hàng')?>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                data-state-save='true' style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="checkbox" data-orderable="false" data-class="text-center">
+                            <div class="form-check"><input class="form-check-input checkall" type="checkbox" value=""
+                                    data-checkbox="input.checker"></div>
+                        </th>
+                        <!-- <th data-name="img" data-orderable="false"></th> -->
+                        <th data-name="code" data-orderable="false"><?=$jatbi->lang("Mã sản phẩm")?></th>
+                        <th data-name="name" data-orderable="false"><?=$jatbi->lang("Tên")?></th>
+
+                        <th data-name="price" data-orderable="false"><?=$jatbi->lang("Giá bán")?></th>
+                        <th data-name="amount_total" data-orderable="false"><?=$jatbi->lang("Số lượng")?></th>
+                        <th data-name="units" data-orderable="false"><?=$jatbi->lang("Đơn vị")?></th>
+
+                        <th data-name="categorys" data-orderable="false"><?=$jatbi->lang("Danh mục")?></th>
+                        <th data-name="group" data-orderable="false"><?=$jatbi->lang("Nhóm sản phẩm")?></th>
+                        <th data-name="group_crafting" data-orderable="false"><?=$jatbi->lang("Nhóm chế tác")?></th>
+
+                        <th data-name="action" data-orderable="false"><?=$jatbi->lang("Tùy chọn")?></th>
+
+                    </tr>
+                </thead>
+
+                <tfoot>
+                    <tr>
+                        <td colspan="2"></td>
+                        <th class="text-end fw-bold" id="total-crafting">Tổng</td>
+                        <th data-name="sum_price" data-orderable="false"></th>
+                        <th data-name="sum_soluong" data-orderable="false"></th>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>

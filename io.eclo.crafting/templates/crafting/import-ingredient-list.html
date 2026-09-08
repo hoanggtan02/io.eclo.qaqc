@@ -1,0 +1,36 @@
+<div class="container-fluid mt-4">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="/"
+                        class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+        <div class="filter-search">
+        </div>
+    </div>
+
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="code"><?=$jatbi->lang("Số phiếu")?></th>
+                        <th data-name="content"><?=$jatbi->lang("Nội dung")?></th>
+                        <th data-name="date"><?=$jatbi->lang("Ngày")?></th>
+                        <th data-name="user"><?=$jatbi->lang("Tài khoản")?></th>
+                        <th data-name="action" data-orderable="false" class="text-end"></th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>

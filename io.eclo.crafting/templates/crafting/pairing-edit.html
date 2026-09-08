@@ -1,0 +1,314 @@
+<div class="container-fluid" data-pos-this>
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0">
+                <li class="breadcrumb-item small">
+                    <a href="<?=$jatbi->url('/')?>" data-pjax class="link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
+                </li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="row g-2">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Thông tin sản phẩm</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Mã sản phẩm <span class="text-danger">*</span></label>
+                        <input 
+                            type="text" 
+                            value="<?=$data['code'] ?? '' ?>" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update" 
+                            data-form='{"value": "#code.val"}' 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/code" 
+                            id="code" data-action="blur"
+                        >
+                    </div>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Tên sản phẩm <span class="text-danger">*</span></label>
+                        <input 
+                            type="text" 
+                            name="name" 
+                            value="<?=$data['name'] ?? '' ?>" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update" 
+                            data-form='{"value": "#name.val"}' 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/name" 
+                            id="name" data-action="blur"
+                        >
+                    </div>
+                    <div class="mb-3">
+                        <label for="price" class="form-label">Giá bán <span class="text-danger">*</span></label>
+                        <input 
+                            type="tel" data-number="money" data-currency="" data-decimals="0" data-thousands="," data-decimal="."
+                            name="price" 
+                            value="<?=$data['price']?>" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update number" 
+                            data-load="this"  data-form='{"value": "#price.val"}' 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/price" 
+                            id="price" data-action="blur"
+                        >
+                    </div>
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Số lượng chế tác <span class="text-danger">*</span></label>
+                        <input 
+                            type="text" 
+                            name="amount" 
+                            value="<?=$data['amount']?>" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update" 
+                            data-load="this" data-form='{"value": "#amount.val"}' 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/amount" 
+                            id="amount" data-action="blur"
+                        >
+                    </div>
+                    <div class="mb-3">
+                        <label for="group" class="form-label">Nhóm sản phẩm <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="group" 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/group" 
+                            data-action="change" data-form='{"value": "this.val"}'
+                            id="group"
+                        >
+                            <?php foreach ($groups as $group) { ?>
+						      	<option value="<?=$group['id']?>"  <?=(($data['group'] ?? "")==$group['id']?'selected':'')?>><?=$group['name']?></option>
+						    <?php } ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="categorys" class="form-label">Danh mục <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="categorys" 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/categorys" 
+                            data-action="change"
+                            id="categorys" data-form='{"value": "this.val"}'
+                        >
+                            <?php foreach ($categorys as $category) { ?>
+						      	<option value="<?=$category['id']?>"  <?=(($data['categorys'] ?? "")==$category['id']?'selected':'')?>><?=$category['name']?></option>
+						    <?php } ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="default_code" class="form-label">Mã cố định <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="default_code" 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/default_code" 
+                            data-action="change"
+                            id="default_code" data-form='{"value": "this.val"}'
+                        >
+                            <?php foreach ($default_codes as $default_code) { ?>
+						      	<option value="<?=$default_code['id']?>"  <?=(($data['default_code'] ?? "")==$default_code['id']?'selected':'')?>><?=$default_code['name']?></option>
+						    <?php } ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="units" class="form-label">Đơn vị <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="units" 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/units" 
+                            data-action="change"
+                            id="units" data-form='{"value": "this.val"}'
+                        >
+                            <?php foreach ($units as $unit) { ?>
+						      	<option value="<?=$unit['id']?>"  <?=(($data['units'] ?? "")==$unit['id']?'selected':'')?>><?=$unit['name']?></option>
+						    <?php } ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="personnels" class="form-label">Nhân viên <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="personnels" 
+                            data-action="change"
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/personnels" 
+                            id="personnels" data-form='{"value": "this.val"}'
+                        >
+                            <?php foreach ($personnels as $personnel) { ?>
+						      	<option value="<?=$personnel['id']?>"  <?=(($data['personnels'] ?? "")==$personnel['id']?'selected':'')?>><?=$personnel['name']?></option>
+						    <?php } ?>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Giới thiệu sản phẩm <span class="text-danger">*</span></label>
+                        <textarea 
+                            name="content" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update" 
+                            style="height: 100px;" 
+                            data-form='{"value": "#content.val"}'
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/content" 
+                            id="content" data-action="blur"
+                        ><?=$data['content'] ?? "" ?></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <?=$app->component('select', [
+                            'name' => 'stores',
+                            'placeholder' => $jatbi->lang("Cửa hàng"),
+                            'required' => true,
+                            'disabled'  => true,
+                            'options' => $stores,
+                            'selected' => $products['stores'] ?? '',
+                            'class' => 'change-update',
+                            "attr" => 'data-action="change" data-load = "this"
+                                data-url="/crafting/pairing-update-edit/'.$dispatch.'/'.$action.'/stores" 
+                                data-form=\'{"value": "this.val"}\''
+                        ])?>
+                    </div>
+                    <div class="mb-3">
+                        <?=$app->component('select',[
+                            "name"=>'branch',
+                            'required' => true,
+                            'disabled'  => true,
+                            "placeholder"=>$jatbi->lang("Quầy hàng Chuyển"),
+                            "selected" =>($products['branch'] ?? ''),
+                            "options" => $branchs,
+                            "attr" => 'data-width="100%"
+                                        data-action="change" 
+                                        data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/branch" 
+                                        data-form=\'{"value": "this.val"}\' ',
+                        ])?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="group_crafting" class="form-label">Nhóm chế tác <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="group_crafting" 
+                            data-action="change"
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/group_crafting" 
+                            id="group_crafting" data-form='{"value": "this.val"}'
+                        >
+                            <option value="">Chọn loại chế tác</option>
+                            <option value="1" <?= (!empty($data['group_crafting']) && $data['group_crafting'] == 1) ? 'selected' : '' ?>>Chế tác vàng</option>
+                            <option value="2" <?= (!empty($data['group_crafting']) && $data['group_crafting'] == 2) ? 'selected' : '' ?>>Chế tác bạc</option>
+                            <option value="3" <?= (!empty($data['group_crafting']) && $data['group_crafting'] == 3) ? 'selected' : '' ?>>Chế tác chuỗi</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="ingredient" class="form-label">Nguyên liệu <span class="text-danger">*</span></label>
+                        <select 
+                            data-select 
+                            data-style="form-select py-3 rounded-4 w-100 bg-body" 
+                            data-width="100%" 
+                            class="filter-name change-update" 
+                            name="ingredient" data-load="this"
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/ingredient/add" 
+                            data-action="change" data-form='{"value": "this.val"}'
+                            id="ingredient"
+                        >
+                            <option value="" ></option>
+                            <?php foreach ($ingredient as $product) { ?>
+                                <option value="<?=$product['id']?>" ><?=$product['code']?></option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped table-bordered align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Nguyên liệu</th>
+                                    <th>Thông số</th>
+                                    <th>Tồn kho</th>
+                                    <th width="10%">Số lượng</th>
+                                    <th>Số lượng chế tác</th>
+                                    <th>Giá bán</th>
+                                    <th>Thành tiền</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach (($SelectProducts ?? []) as $key => $SelectProduct) {  
+                                    if (empty($SelectProduct['deleted'])) {
+                                    $getPro = $app->get("ingredient","*",["id"=>$SelectProduct['ingredient']]); 
+                                ?>
+                                <tr>
+                                    <td class="p-2"><?= $getPro['code'] ?? '' ?></td>
+                                    <td class="p-2">
+                                        <?php if (($getPro['type'] ?? 0) == 1) { ?>
+                                            <p class="mb-0">Chế tác: <?= $app->get("products_group", "name", ["id" => $getPro['group'] ?? 0]) ?></p>
+                                            <p class="mb-0">Danh mục: <?= $app->get("categorys", "name", ["id" => $getPro['categorys'] ?? 0]) ?></p>
+                                        <?php } elseif (($getPro['type'] ?? 0) == 2) { ?>
+                                            <p class="mb-0">Loại ngọc: <?= $app->get("pearl", "name", ["id" => $getPro['pearl'] ?? 0]) ?></p>
+                                            <p class="mb-0">Màu sắc: <?= $app->get("colors", "name", ["id" => $getPro['colors'] ?? 0]) ?></p>
+                                            <p class="mb-0">Li ngọc: <?= $app->get("sizes", "name", ["id" => $getPro['sizes'] ?? 0]) ?></p>
+                                        <?php } ?>
+                                    </td>
+                                    <td class="p-2"><?= $SelectProduct['warehouses'] ?? 0 ?></td>
+                                    <td class="p-2">
+                                        <input type="number" name="amount" class="blur-update border-0 w-100  h-100 p-2 bg-transparent" data-action="blur"
+                                        data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/ingredient/amount/<?=$key?>" data-form='{"value": "this.val"}'
+                                        value="<?=$SelectProduct['amount']?>" data-load="this" min="0">
+                                    </td>
+                                    <td class="p-2"><?= (int)($SelectProduct['amount'] ?? 0) * (int)($data['amount'] ?? 0) ?></td>
+                                    <td class="p-2"><?= number_format($SelectProduct['price'] ?? 0) ?></td>
+                                    <td class="p-2"><?= number_format(($SelectProduct['amount'] ?? 0) * ($SelectProduct['price'] ?? 0)) ?></td>
+                                    <td class="text-center">
+                                        <a class="click-update text-danger" data-load="this" data-action="click"
+                                            data-alert="true" 
+                                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/ingredient/deleted/<?=$key?>">
+                                            <i class="ti ti-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                <?php } }?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Ghi chú</label>
+                        <textarea 
+                            name="notes" 
+                            class="form-control py-3 rounded-4 w-100 bg-body filter-name blur-update" 
+                            style="height: 100px;" 
+                            data-form='{"value": "#notes.val"}'
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/notes" 
+                            id="notes" data-action="blur"
+                        ><?=$data['notes'] ?? ""?></textarea>
+                    </div>
+                </div>
+                    <div class="card-footer text-end bg-light border-0">
+                        <a 
+                            class="btn btn-eclo-light py-3 rounded-4 me-2" 
+                            data-load="this" data-action="modal"
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/cancel"
+                        >Hủy</a>
+                        <a 
+                            class="btn btn-danger py-3 rounded-4 me-2" 
+                            data-load="this" data-action="modal" 
+                            data-url="/crafting/pairing-update-edit/<?=$dispatch?>/<?=$action?>/completed"
+                        >Hoàn tất</a>
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>

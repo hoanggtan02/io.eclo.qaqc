@@ -1,0 +1,138 @@
+<div class="modal fade modal-load" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header d-print-none">
+                <h5 class="modal-title">
+                    <?=$title?>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex;justify-content: space-between;color:#000">
+                    <div style="text-transform: uppercase; width: 60%">
+                        <h6 class="p-0 m-0">CÔNG TY TNHH MỘT THÀNH VIÊN NGỌC TRAI NGỌC HIỀN PHÚ QUỐC</h6>
+                    </div>
+                    <div class="text-center" style="width: 40%">
+                        <strong>Mẫu số 01 - VT</strong>
+                        <h6 class="small"><i>(Ban hành theo Thông tư số 133/2016/TT-BTC Ngày 26/08/2016 của bộ Tài
+                                Chính)</i></h6>
+                    </div>
+                </div>
+                <div class="text-center my-3" style="color:#000;">
+                    <h4 style="color:#000;">PHIẾU XUẤT KHO</h4>
+                    <h6><i><?=$jatbi->lang('Ngày')?>:
+                            <?=date('d/m/Y', strtotime($data['date']))?>
+                        </i></h6>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Mã xuất kho')?>:</strong> #
+                        <?=$data['code']?>
+                        <?=$data['id']?>
+                    </div>
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Ngày tạo')?>:</strong>
+                        <?=$jatbi->datetime($data['date_poster'])?>
+                    </div>
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Cửa hàng')?>:</strong>
+                        <?=$data['store_name']?>
+                    </div>
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Quầy hàng')?>:</strong>
+                        <?=$data['branch_name']?>
+                    </div>
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Tài khoản')?>:</strong>
+                        <?=$data['user_name']?>
+                    </div>
+                    <div class="col-lg-6 mb-2"><strong><?=$jatbi->lang('Nội dung')?>:</strong>
+                        <?=$data['content']?>
+                    </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-hover table-striped table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th><?=$jatbi->lang('Mã sản phẩm')?></th>
+                                <th class="text-end"><?=$jatbi->lang('Đơn giá')?></th>
+                                <th class="text-center"><?=$jatbi->lang('Số lượng')?></th>
+                                <th><?=$jatbi->lang('Đơn vị')?></th>
+                                <th class="text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $total = 0;
+                            foreach ($details as $item):
+                                $total_price = ($item['amount'] ?? 0) * ($item['price'] ?? 0);
+                                $total += $total_price;
+                            ?>
+                            <tr>
+                                <td>
+                                    <?=$item['crafting_code']?>
+                                </td>
+                                <td class="text-end">
+                                    <?=number_format($item['price'] ?? 0)?>
+                                </td>
+                                <td class="text-center">
+                                    <?=$item['amount']?>
+                                </td>
+                                <td>
+                                    <?=$item['unit_name']?>
+                                </td>
+                                <td class="text-end fw-bold">
+                                    <?=number_format($total_price)?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot class="fw-bold">
+                            <tr>
+                                <td colspan="4" class="text-end"><?=$jatbi->lang('Tổng cộng')?></td>
+                                <td class="text-end">
+                                    <?=number_format($total)?>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div style="color: #000;">Tổng số tiền (Viết bằng chữ): </div>
+                    <div style="color: #000;">Số chứng từ gốc kèm theo:
+                        ............................................................</div>
+                    <div style="display: flex; justify-content: space-between; color: #000;">
+                        <div class="font-weight-bold"
+                            style="display: inline-block; text-transform: uppercase; width: 60%;"></div>
+                        <div class="text-center" style="display: inline-block; width: 40%;">
+                            <p><span class="font-weight-bold font-italic" style="color: #000;"><i>Ngày .... Tháng ....
+                                        Năm .....</i></span></p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="mt-4">
+                    <table style="width: 100%">
+                        <tr>
+                            <td style="width: 33%;text-align: center;"><strong>Người Lập</strong></td>
+                            <td style="width: 33%;text-align: center;"><strong>Thủ Kho</strong></td>
+                            <td style="width: 33%;text-align: center;"><strong>Người Nhận</strong></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center"><i>(Ký, họ tên)</i></td>
+                            <td style="text-align: center"><i>(Ký, họ tên)</i></td>
+                            <td style="text-align: center"><i>(Ký, họ tên)</i></td>
+                        </tr>
+                        <tr>
+                            <td style="padding-top: 80px;text-align: center;">
+                                <?=$data['user_name']?>
+                            </td>
+                            <td style="padding-top: 80px;text-align: center;"></td>
+                            <td style="padding-top: 80px;text-align: center;"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        <div class="modal-footer d-print-none border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal"><?=$jatbi->lang('Hủy')?></button>
+                <button class="btn btn-success rounded-pill px-4 btn-print" ><i class="ti ti-printer me-2"></i><?=$jatbi->lang('IN')?></button>
+            </div>
+        </div>
+    </div>
+</div>

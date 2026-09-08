@@ -1,0 +1,146 @@
+<div class="pjax-content-load" style="margin-left: 15px;">
+    <!-- PHẦN HEADER VÀ BREADCRUMB -->
+    <nav class="d-flex justify-content-between align-items-center mb-4" aria-label="breadcrumb">
+        <div>
+            <h4 class="fw-bold mb-1">
+                <?=$title?>
+            </h4>
+            <ol class="breadcrumb small mb-0">
+                <li class="breadcrumb-item"><a href="/"
+                        class="link-secondary pjax-load"><?=$jatbi->lang("Trang chủ")?></a></li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ol>
+        </div>
+        <div class="text-end">
+            <img src="https://chart.googleapis.com/chart?chs=100x100&cht=qr&chl=<?=$data['code']?>&choe=UTF-8"
+                class="rounded-3 shadow-sm">
+        </div>
+    </nav>
+
+    <div class="row g-4">
+        <!-- CỘT BÊN TRÁI: THÔNG TIN NGUYÊN LIỆU -->
+        <div class="col-md-3">
+            <div class="card bg-body-tertiary border-0 shadow-sm rounded-4 h-100">
+                <div
+                    class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-semibold"><?=$jatbi->lang("Thông tin")?></h5>
+
+                    <button data-action="modal" data-url="/warehouses/ingredient-edit/<?=$data['id']?>"
+                        class="btn btn-eclo-light btn-sm border-0 py-1 px-2 rounded-3"
+                        aria-label="'.$jatbi->lang('Xem').'"><i class="ti ti-edit"></i></button>
+
+                </div>
+                <div class="card-body p-3">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Mã")?>:</span> <strong class="text-end">#
+                                <?=$data['code']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Màu sắc")?>:</span> <strong class="text-end">
+                                <?=$data['color_name']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Loại ngọc")?>:</span> <strong class="text-end">
+                                <?=$data['pearl_name']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Li ngọc")?>:</span> <strong class="text-end">
+                                <?=$data['size_name']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Nhóm")?>:</span> <strong class="text-end">
+                                <?=$data['group_name']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Danh mục")?>:</span> <strong class="text-end">
+                                <?=$data['category_name']?>
+                            </strong></li>
+                        <li class="list-group-item bg-transparent d-flex justify-content-between px-1 py-2"><span
+                                class="text-muted"><?=$jatbi->lang("Đơn vị")?>:</span> <strong class="text-end">
+                                <?=$data['unit_name']?>
+                            </strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT BÊN PHẢI: BỘ LỌC VÀ CÁC BẢNG -->
+        <div class="col-md-9">
+            <!-- BỘ LỌC -->
+            <div class="d-flex justify-content-end mb-3">
+                <div class="dropdown">
+                    <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill small d-flex align-items-center"
+                        type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                        <i class="ti ti-filter fs-5 me-2"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                        style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                        <div class="fw-semibold py-2 px-3">
+                            <?=$jatbi->lang("Điều kiện lọc")?>
+                        </div>
+                        <div class="px-3 mt-3">
+                            <?=$app->component('input',[
+                                            "name" => 'date',
+                                            "placeholder" => $jatbi->lang("Ngày"),
+                                            "value" => $app->xss($_GET['date'] ?? (date('01/01/2021', strtotime($date_from)) . ' - ' . date('d/m/Y', strtotime($date_to)))),
+                                            "class" => 'filter-name',
+                                            "attr" => 'data-width="100%" data-datepicker',
+                                        ])?>
+                        </div>
+                        <hr class="border-secondary border-opacity-50 my-2">
+                        <div class="px-3 py-2 text-end w-100">
+                            <button type="button"
+                                class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                            <button type="button"
+                                class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BẢNG LỊCH SỬ DATATABLES -->
+            <div class="card bg-body-tertiary border-0 shadow-sm rounded-4">
+                <div class="card-header bg-transparent border-bottom py-3">
+                    <h5 class="mb-0 fw-semibold"><?=$jatbi->lang("Lịch sử xuất nhập tồn")?></h5>
+                </div>
+                <div class="card-body p-3">
+                    <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                        data-processing="true" data-page-length="10" data-searching="false" data-paging="true"
+                        data-state-save="true" style="width:100%">
+                        <thead class="table-light">
+                            <tr>
+                                <th data-name="id" data-orderable="false"><?=$jatbi->lang("ID")?></th>
+                                <th data-name="import" data-orderable="false" data-class="text-primary">
+                                    <?=$jatbi->lang("SL nhập")?>
+                                </th>
+                                <th data-name="export" data-orderable="false" data-class="text-success">
+                                    <?=$jatbi->lang("SL xuất")?>
+                                </th>
+                                <th data-name="cancel" data-orderable="false" data-class="text-danger">
+                                    <?=$jatbi->lang("SL hủy")?>
+                                </th>
+                                <th data-name="price" data-orderable="false"><?=$jatbi->lang("Giá bán")?></th>
+                                <th data-name="notes" data-orderable="false"><?=$jatbi->lang("Ghi chú")?></th>
+                                <th data-name="date" data-orderable="true"><?=$jatbi->lang("Ngày")?></th>
+                                <th data-name="user" data-orderable="false"><?=$jatbi->lang("Tài khoản")?></th>
+                            </tr>
+                        </thead>
+                        <tfoot>
+                            <tr>
+                                <th colspan="1" class="text-end"><?=$jatbi->lang("Tổng cộng")?></th>
+                                <th data-name="totalImport" data-orderable="false"></th>
+                                <th data-name="totalExport" data-orderable="false"></th>
+                                <th data-name="totalPairing" data-orderable="false"></th>
+                                <!-- <th data-name="totalCancel" data-orderable="false"></th> -->
+                                <th data-name="price" data-orderable="false"><?= number_format($data['price'])?></th>
+                                </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

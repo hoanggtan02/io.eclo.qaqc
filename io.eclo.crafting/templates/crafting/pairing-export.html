@@ -1,0 +1,132 @@
+<div class="container-fluid pjax-content-load">
+    <div class="mb-3">
+        <h4 class="mb-0 fw-bold text-body">
+            <?=$title?>
+        </h4>
+        <ul class="breadcrumb small mb-0">
+            <li class="breadcrumb-item small"><a href="<?=$jatbi->url('/')?>"
+                    class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+            <li class="breadcrumb-item small text-body" aria-current="page">
+                <?=$title?>
+            </li>
+        </ul>
+    </div>
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <?=$app->component('select', [
+                        'name' => 'stores', 
+                        'placeholder' => $jatbi->lang("Cửa hàng"), 
+                        'options' => $stores ?? [], 
+                        'selected' => $data['stores']['id'] ?? '', 
+                        'required' => true, 'class' => 'change-update', 
+                        'id' => 'stores-filter', 
+                        'attr' => 'data-url="/crafting/pairing/export/update/stores" data-action="change" data-load="this" data-form=\'{"value":"this.val"}\''])?>
+                </div>
+                <div class="col-md-4">
+                    <?=$app->component('select', ['name' => 'branch', 'placeholder' => $jatbi->lang("Quầy hàng"), 'options' => $branchs ?? [], 'selected' => $data['branch']['id'] ?? '', 'required' => true, 'class' => 'change-update', 'attr' => 'data-parent="#stores-filter" data-url="/crafting/pairing/export/update/branch" data-action="change" data-form=\'{"value":"this.val"}\''])?>
+                </div>
+                <div class="col-md-4">
+                    <?=$app->component('input', ['name' => 'date', 'placeholder' => $jatbi->lang("Ngày"), 'type' => 'date', 'value' => $data['date'] ?? date('Y-m-d'), 'required' => true, 'attr' => 'data-action="change" data-url="/crafting/pairing/export/update/date" data-form=\'{"value":"this.val"}\''])?>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <?=$app->component('select', [
+                    'name' => 'craftings', 'placeholder' => $jatbi->lang("Chọn từ kho hàng chế tác"), 'required' => true,
+                    'multiple' => true, 'options' => $craftings ?? [],
+                    'attr' => 'data-action="change" data-load="this" data-url="/crafting/pairing/export/update/craftings/add" data-form=\'{"value":"this.val"}\''
+                ])?>
+            </div>
+
+            <div class="table-responsive mt-3">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th><?=$jatbi->lang('Mã sản phẩm')?></th>
+                            <th class="text-center"><?=$jatbi->lang('Tồn kho')?></th>
+                            <th class="text-center" style="width:10%"><?=$jatbi->lang('Số lượng')?></th>
+                            <th class="text-center"><?=$jatbi->lang('Đơn vị')?></th>
+                            <th class="text-end"><?=$jatbi->lang('Giá bán')?></th>
+                            <th class="text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                            <th style="width:15%"><?=$jatbi->lang('Ghi chú')?></th>
+                            <th style="width:1%"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php $total_sl = 0; $sum = 0; ?>
+                        <?php foreach ($SelectProducts ?? [] as $key => $item): ?>
+                        <?php $total_sl += ($item['amount'] ?? 0); $sum += ($item['price'] ?? 0) * ($item['amount'] ?? 0); ?>
+                        <tr>
+                            <td>
+                                <?=$item['code']?>
+                            </td>
+                            <td class="text-center">
+                                <?=$item['warehouses']?>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control text-center"
+                                    value="<?=$item['amount'] ?? ''?>" data-load="this" data-action="blur"
+                                    data-url="/crafting/pairing/export/update/craftings/amount/<?=$key?>"
+                                    data-form='{"value":"this.val"}'>
+                            </td>
+                            </td>
+                            <td class="text-center">
+                                <?=$item['unit_name']?>
+                            </td>
+                            <td class="text-end">
+                                <?=number_format($item['price'] ?? 0)?>
+                            </td>
+                            <td class="text-end fw-bold">
+                                <?=number_format(($item['price'] ?? 0) * ($item['amount'] ?? 0))?>
+                            </td>
+                            <td><input type="text" class="form-control" value="<?=$item['notes'] ?? ''?>"
+                                    data-load="false" data-action="blur"
+                                    data-url="/crafting/pairing/export/update/craftings/notes/<?=$key?>"
+                                    data-form='{"value":"this.val"}'></td>
+                            <td class="text-center">
+                                <a class="btn btn-link text-danger p-0" data-action="click" data-load="this"
+                                    data-url="/crafting/pairing/export/update/craftings/deleted/<?=$key?>">
+                                    <i class="ti ti-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold table-light">
+                            <td class="text-end"><?=$jatbi->lang('Tổng cộng')?></td>
+                            <td></td>
+                            <td class="text-center">
+                                <?=$total_sl?>
+                            </td>
+                            <td colspan="2"></td>
+                            <td class="text-end fs-5">
+                                <?=number_format($sum)?>
+                            </td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <?=$app->component('textarea', [
+                    "name" => 'content', "placeholder" => "Nội dung", 
+                    "value" => $data['content'] ?? '', 
+                    "rows" => 3, 
+                    "required" => true,
+                    "attr" => 'data-action="blur" data-load="false" data-url="/crafting/pairing/export/update/content" data-form=\'{"value": "this.val"}\''
+                ])?>
+            </div>
+        </div>
+        <div class="card-footer bg-transparent border-0 py-3 text-end">
+            <button class="btn btn-eclo-light rounded-pill px-4" data-action="click" data-load="this"
+                data-url="/crafting/pairing/export/update/cancel"><?=$jatbi->lang('Hủy')?></button>
+            <button class="btn btn-eclo rounded-pill px-5 ms-2" data-action="click"
+                data-load="/crafting/pairing-export-history"
+                data-url="/crafting/pairing/export/update/completed"><?=$jatbi->lang('Hoàn tất')?></button>
+        </div>
+    </div>
+</div>

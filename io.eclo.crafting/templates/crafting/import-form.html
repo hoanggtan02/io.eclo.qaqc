@@ -1,0 +1,81 @@
+<div class="container-fluid pjax-content-load">
+    <div class="mb-3">
+        <h4 class="mb-0 fw-bold text-body"><?=$title?></h4>
+        <ul class="breadcrumb small mb-0">
+            <li class="breadcrumb-item small"><a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+            <li class="breadcrumb-item small text-body" aria-current="page"><?=$title?></li>
+        </ul>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3"><?=$jatbi->lang('Chi tiết Nhập hàng')?></h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><?=$jatbi->lang('Nguyên liệu')?></th>
+                                    <th class="text-end"><?=$jatbi->lang('Đơn giá')?></th>
+                                    <th class="text-center"><?=$jatbi->lang('Tồn kho')?></th>
+                                    <th class="text-center" width="10%"><?=$jatbi->lang('Số lượng')?></th>
+                                    <th><?=$jatbi->lang('Đơn vị')?></th>
+                                    <th class="text-end"><?=$jatbi->lang('Thành tiền')?></th>
+                                    <th><?=$jatbi->lang('Ghi chú')?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $total = 0;
+                                foreach ($SelectProducts as $key => $item):
+                                    $detail = $ingredient_map[$item['ingredient']] ?? [];
+                                    $total_price = ($item['amount'] ?? 0) * ($item['price'] ?? 0);
+                                    $total += $total_price;
+                                ?>
+                                <tr>
+                                    <td><?=$detail['code'] ?? 'N/A'?></td>
+                                    <td class="text-end"><?=number_format($item['price'] ?? 0)?></td>
+                                    <td class="text-center"><?=number_format($item['warehouses'] ?? 0, 1)?></td>
+                                    <td>
+                                        <input type="number" name="amount"
+                                            class="form-control form-control-sm text-center"
+                                            value="<?=$item['amount']?>" min="0" 
+                                            data-action="blur" data-load="this"
+                                            data-url="/crafting/crafting-update/<?=$action?>/ingredient/amount/<?=$key?>"
+                                            data-form='{"value": "this.val"}'>
+                                    </td>
+                                    <td><?=$detail['unit_name']?></td>
+                                    <td class="text-end fw-bold"><?=number_format($total_price)?></td>
+                                    <td>
+                                        <input type="text" name="notes" class="form-control form-control-sm"
+                                            value="<?=htmlspecialchars($item['notes'])?>" data-action="blur"
+                                            data-url="/crafting/crafting-update/<?=$action?>/ingredient/notes/<?=$key?>"
+                                            data-form='{"value": "this.val"}'>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot class="fw-bold">
+                                <tr>    
+                                    <td colspan="5" class="text-end"><?=$jatbi->lang('Tổng cộng')?></td>
+                                    <td class="text-end text-primary fs-5">
+                                        <?=number_format($total)?>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <?=$app->component('textarea', [
+                    "name" => 'content', "placeholder" => $jatbi->lang('Nội dung'), "value" => $data['content'] ?? '',
+                    "attr" => 'data-action="blur" data-url="/crafting/crafting-update/'.$action.'/content" data-form=\'{"value": "this.val"}\''
+                    ])?>
+                </div>
+                <div class="card-footer text-end bg-transparent border-0 py-3">
+                    <button class="btn btn-light rounded-pill px-4" data-action="click" data-load="this" data-url="/crafting/crafting-update/<?=$action?>/cancel"><?=$jatbi->lang('Hủy')?></button>
+                    <button class="btn btn-eclo rounded-pill px-5" data-action="click" data-load="/crafting/crafting-import-history/<?=$type1?>" data-url="/crafting/crafting-update/<?=$action?>/completed"><?=$jatbi->lang('Hoàn tất')?></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
