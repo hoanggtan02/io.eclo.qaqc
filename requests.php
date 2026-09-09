@@ -9,11 +9,11 @@ return [
                 "url" => '/qaqc',
                 "icon" => '<i class="ti ti-microscope"></i>',
                 "sub" => [
-                    'qaqc' => [
-                        "name" => $jatbi->lang("QAQC"),
-                        "router" => '/qaqc',
-                        "icon" => '<i class="ti ti-ticket"></i>',
-                    ],
+                    // 'qaqc' => [
+                    //     "name" => $jatbi->lang("QAQC"),
+                    //     "router" => '/qaqc',
+                    //     "icon" => '<i class="ti ti-ticket"></i>',
+                    // ],
                     // 'batch' => [
                     //     "name" => $jatbi->lang("Lô sản xuất"),
                     //     "router" => '/qaqc/batch',

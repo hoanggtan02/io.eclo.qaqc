@@ -15,6 +15,21 @@
         </div>
         <div class="filter-search">
             <div class="d-flex align-items-center justify-content-end">
+                <?php if(($stage_code ?? '') === 'VS' && $jatbi->permission(['stage_import']) == 'true'){ ?>
+                <a href="<?=$jatbi->url('/qaqc/vs-add')?>" data-action="modal"
+                    class="btn btn-eclo fw-semibold border-0 rounded-pill small me-2">
+                    <i class="ti ti-plus me-2"></i> <?=$jatbi->lang("Nhập ngọc")?>
+                </a>
+                <?php } ?>
+                <?php if((($stage_code ?? '') === 'VS' || ($stage_code ?? '') === 'KX') && $jatbi->permission(['stage_transfer']) == 'true'){ ?>
+                <a href="<?=$jatbi->url('/qaqc/stage-transfer/' . $stage_code)?>"
+                    class="btn btn-eclo fw-semibold border-0 rounded-pill small me-2 pjax-load">
+                    <i class="ti ti-transfer me-2"></i> <?=$jatbi->lang("Chuyển kho")?>
+                </a>
+                <?php } ?>
+                <a href="<?=$jatbi->url('/qaqc/stage/' . $stage_code . '/history')?>" class="btn btn-eclo-light fw-semibold border-0 rounded-pill small me-2 pjax-load">
+                    <i class="ti ti-history me-2"></i> <?=$jatbi->lang("Lịch sử chuyển")?>
+                </a>
                 <div class="dropdown">
                     <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill small d-flex align-items-center"
                         type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
@@ -47,24 +62,6 @@
         </div>
     </div>
 
-    <?php if(($stage_code ?? '') === 'VS' && $jatbi->permission(['stage_import']) == 'true'){ ?>
-    <div class="position-fixed bottom right z-3 dropup-center dropup" style="--bottom:40px;--right:20px">
-        <button class="btn btn-eclo rounded-circle width height d-flex align-items-center justify-content-center "
-            style="--width:70px;--height:70px;" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="ti ti-menu-2 fs-1" aria-hidden="true"></i>
-        </button>
-        <ul class="dropdown-menu min-width bg-transparent border-0 justify-content-center p-2" style="--min-width:100%">
-            <li class="my-2">
-                <a class="btn rounded-circle btn-warning width height d-flex justify-content-center align-items-center p-1"
-                    data-action="modal" data-url="<?=$jatbi->url('/qaqc/vs-add')?>"
-                    style="--width:50px;--height:50px;">
-                    <i class="ti ti-plus fs-3" aria-hidden="true"></i>
-                </a>
-            </li>
-        </ul>
-    </div>
-    <?php } ?>
-
     <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
         <div class="card-body">
             <?php if(!empty($stage_desc)){ ?>
@@ -78,18 +75,18 @@
                 data-state-save='true' style="width:100%">
                 <thead>
                     <tr>
+                        <th data-name="pearl_name" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Loại Ngọc")?></th>
                         <th data-name="code" data-searchable="true" data-orderable="true" class="text-nowrap"
                             data-visible="true" data-class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
-                        <th data-name="pearl_name" data-orderable="false" class="" data-visible="true"
-                            data-class="text-start"><?=$jatbi->lang("Chi tiết ngọc")?></th>
-                        <th data-name="weight_kg" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-end"><?=$jatbi->lang("Kg tồn")?></th>
-                        <th data-name="amount" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-end"><?=$jatbi->lang("Viên tồn")?></th>
+                        <th data-name="qty" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Số ký/viên")?></th>
                         <th data-name="date" data-orderable="false" class="text-nowrap" data-visible="true"
                             data-class="text-nowrap"><?=$jatbi->lang("Ngày vào kho")?></th>
+                        <?php if(($stage_code ?? '') === 'LT'){ ?>
                         <th data-name="action" data-orderable="false" class="text-nowrap" data-visible="true"
                             data-class="text-end"><?=$jatbi->lang("Thao tác")?></th>
+                        <?php } ?>
                     </tr>
                 </thead>
             </table>
