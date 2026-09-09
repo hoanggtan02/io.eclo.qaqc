@@ -39,12 +39,12 @@
                                 <div class="form-text small text-danger hao-hut-kg"></div>
                             </div>
                             <?php } ?>
-                            <?php if ($s['amount'] > 0) { ?>
+                            <?php if ($s['amount'] > 0 || $from_stage['code'] === 'KX') { ?>
                             <div class="col-6">
                                 <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên chuyển đi")?></label>
-                                <input type="number" step="1" min="0" max="<?=$s['amount']?>"
+                                <input type="number" step="1" min="0" <?=$s['amount'] > 0 ? 'max="'.$s['amount'].'"' : ''?>
                                     class="form-control rounded-4 input-vien-out"
-                                    name="lines[<?=$s['pearl']?>][amount]" value="<?=$s['amount']?>">
+                                    name="lines[<?=$s['pearl']?>][amount]" value="<?=$s['amount'] > 0 ? $s['amount'] : ''?>">
                                 <div class="form-text small text-danger hao-hut-vien"></div>
                             </div>
                             <?php } ?>

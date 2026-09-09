@@ -146,10 +146,13 @@
     addBtn.addEventListener('click', function () { addRow(); });
     addRow(); // luôn có sẵn 1 dòng khi mở form
 
+    var submitted = false; // chống gửi đúp (click nhanh / Enter lặp)
+
     form.addEventListener('submit', function (e) {
+        e.preventDefault(); // chặn submit native → chỉ framework data-action="submit" được gửi (1 POST duy nhất)
+        if (submitted) return;
         var activeRows = itemsWrap.querySelectorAll('[data-row]');
         if (activeRows.length === 0) {
-            e.preventDefault();
             alert('<?=$jatbi->lang("Vui lòng thêm ít nhất 1 dòng chi tiết")?>');
             return;
         }
@@ -161,17 +164,19 @@
             var hasKg = !isNaN(kg) && kg > 0;
             var hasVien = !isNaN(vien) && vien > 0;
             if (!hasKg && !hasVien) {
-                e.preventDefault();
                 alert('<?=$jatbi->lang("Mỗi dòng cần nhập kg hoặc số viên thực nhận hợp lệ")?>');
                 return;
             }
             var pearlSelect = activeRows[i].querySelector('select[name$="[pearl]"]');
             if (pearlSelect && pearlSelect.value === '') {
-                e.preventDefault();
                 alert('<?=$jatbi->lang("Vui lòng chọn loại ngọc cho tất cả các dòng")?>');
                 return;
             }
         }
+        submitted = true;
+        setTimeout(function () { submitted = false; }, 4000);
+        var submitBtn = form.querySelector('[data-action="submit"]');
+        if (submitBtn) submitBtn.click();
     });
 })();
 </script>

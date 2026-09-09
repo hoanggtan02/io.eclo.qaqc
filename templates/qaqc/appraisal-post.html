@@ -1,0 +1,189 @@
+<div class="container-fluid pjax-content-load">
+    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h4 class="mb-0 fw-bold text-body"><?=$title?></h4>
+            <ul class="breadcrumb small mb-0">
+                <li class="breadcrumb-item small"><a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a></li>
+                <li class="breadcrumb-item small"><a href="<?=$jatbi->url('/qaqc/stage/LT')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Kho Lưu Trữ")?></a></li>
+                <li class="breadcrumb-item small text-body" aria-current="page"><?=$title?></li>
+            </ul>
+        </div>
+        <div>
+            <a href="<?=$jatbi->url('/qaqc/stage/LT')?>" class="btn btn-light rounded-pill px-4 pjax-load">
+                <i class="ti ti-arrow-left me-1"></i> <?=$jatbi->lang("Quay lại danh sách")?>
+            </a>
+        </div>
+    </div>
+
+    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-appraisal" data-action="submit" data-alert="true">
+        <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4 mb-3">
+            <div class="card-header bg-transparent border-0 pt-3 pb-2">
+                <h5 class="fw-bold mb-0 text-body">
+                    <i class="ti ti-diamond me-1 text-primary"></i> <?=$jatbi->lang("Thẩm định ngọc")?>: #<?=htmlspecialchars($batch['code'])?>
+                </h5>
+                <div class="small text-secondary"><?=$jatbi->lang("Gắn mã ngọc + kích thước + màu sắc cho từng viên trong Lô. Lưu vào bảng ingredient (loại Ngọc) và lịch sử thẩm định.")?></div>
+            </div>
+            <div class="card-body">
+                <?php foreach ($stock as $s) { ?>
+                <div class="appraisal-pearl border rounded-4 p-3 mb-3 bg-body" data-pearl-id="<?=$s['pearl']?>" data-ton="<?=$s['amount']?>">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div>
+                            <span class="fw-bold fs-6 text-body"><?=htmlspecialchars($s['pearl_name'] ?? $jatbi->lang("Ngọc"))?></span>
+                            <?php if (($s['unit_mode'] ?? '') === 'kg_and_vien') { ?>
+                                <span class="badge bg-info ms-2"><?=$jatbi->lang("Kg + Viên (Maxima)")?></span>
+                            <?php } else { ?>
+                                <span class="badge bg-warning text-dark ms-2"><?=$jatbi->lang("Quy đổi Kg → Viên (Akoya)")?></span>
+                            <?php } ?>
+                        </div>
+                        <div class="small text-secondary">
+                            <?=$jatbi->lang("Tồn tại LT")?>:
+                            <?php if ($s['weight_kg'] > 0) { ?><span class="fw-bold text-body fs-6"><?=number_format($s['weight_kg'], 2)?> kg</span><?php } ?>
+                            <?php if ($s['amount'] > 0) { ?> · <span class="fw-bold text-body fs-6"><?=number_format($s['amount'])?> <?=$jatbi->lang("viên")?></span><?php } ?>
+                        </div>
+                    </div>
+
+                    <div class="appraisal-rows">
+                        <div class="appraisal-row mb-2">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Mã ngọc sau thẩm định")?> <span class="text-danger">*</span></label>
+                                    <input type="text" name="lines[<?=$s['pearl']?>][code][]" class="form-control rounded-4 fw-bold" placeholder="<?=$jatbi->lang("VD: AKW056A0")?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Kích thước (size)")?> <span class="text-danger">*</span></label>
+                                    <select name="lines[<?=$s['pearl']?>][sizes][]" class="form-select rounded-4">
+                                        <option value=""><?=$jatbi->lang("Chọn size...")?></option>
+                                        <?php foreach ($sizes as $sz) { ?>
+                                        <option value="<?=$sz['id']?>"><?=$sz['name']?></option>
+                                        <?php } ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Màu sắc")?> <span class="text-danger">*</span></label>
+                                    <select name="lines[<?=$s['pearl']?>][colors][]" class="form-select rounded-4">
+                                        <option value=""><?=$jatbi->lang("Chọn màu...")?></option>
+                                        <?php foreach ($colors as $c) { ?>
+                                        <option value="<?=$c['id']?>"><?=$c['name']?></option>
+                                        <?php } ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên")?> <span class="text-danger">*</span></label>
+                                    <input type="number" step="1" min="1" class="form-control rounded-4 input-appraisal-vien" name="lines[<?=$s['pearl']?>][amount][]" placeholder="0">
+                                </div>
+                                <div class="col-md-1 text-md-end">
+                                    <button type="button" class="btn btn-light btn-sm rounded-3 btn-remove-row" aria-label="<?=$jatbi->lang("Xóa dòng")?>">
+                                        <i class="ti ti-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row g-2 align-items-end mt-1">
+                                <div class="col-md-4">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Thẩm định vào kho chế tác")?> <span class="text-danger">*</span></label>
+                                    <select name="lines[<?=$s['pearl']?>][group_crafting][]" class="form-select rounded-4">
+                                        <?php foreach ($craft_groups as $cg) { ?>
+                                        <option value="<?=$cg['value']?>" <?=($cg['value'] == ($s['group_crafting'] ?? 1)) ? 'selected' : ''?>><?=$cg['text']?></option>
+                                        <?php } ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Giá tiền (đ/viên)")?> <span class="text-danger">*</span></label>
+                                    <input type="text" inputmode="numeric" class="form-control rounded-4 input-appraisal-price" name="lines[<?=$s['pearl']?>][price][]" placeholder="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+                        <button type="button" class="btn btn-eclo-light btn-sm rounded-pill px-3 btn-add-row">
+                            <i class="ti ti-plus me-1"></i> <?=$jatbi->lang("Thêm dòng mã ngọc")?>
+                        </button>
+                        <div class="small text-secondary">
+                            <?=$jatbi->lang("Đã nhập")?>: <span class="fw-bold text-body appraisal-total">0</span> /
+                            <?=$s['amount'] > 0 ? number_format($s['amount']) . ' ' . $jatbi->lang("viên") : $jatbi->lang("tự do (tồn chưa quy đổi viên)")?>
+                        </div>
+                    </div>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+
+        <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+            <div class="card-body p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <a href="<?=$jatbi->url('/qaqc/stage/LT')?>" class="btn btn-light rounded-pill px-4 pjax-load">
+                    <i class="ti ti-x me-1"></i> <?=$jatbi->lang("Hủy bỏ")?>
+                </a>
+                <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6">
+                    <i class="ti ti-check me-1"></i> <?=$jatbi->lang("Lưu thẩm định & Đưa vào Kho Chế Tác")?>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('form-appraisal');
+    if (!form) return;
+
+    function cloneRow(btn) {
+        var pearl = btn.closest('.appraisal-pearl');
+        var rowsBox = pearl.querySelector('.appraisal-rows');
+        var first = rowsBox.querySelector('.appraisal-row');
+        if (!first) return;
+        var clone = first.cloneNode(true);
+        clone.querySelectorAll('input,select').forEach(function (el) {
+            el.value = '';
+        });
+        rowsBox.appendChild(clone);
+        updateTotals();
+    }
+
+    function removeRow(btn) {
+        var row = btn.closest('.appraisal-row');
+        var pearl = row.closest('.appraisal-pearl');
+        var rows = pearl.querySelectorAll('.appraisal-row');
+        if (rows.length <= 1) {
+            row.querySelectorAll('input,select').forEach(function (el) {
+                el.value = '';
+            });
+            return;
+        }
+        row.remove();
+        updateTotals();
+    }
+
+    function updateTotals() {
+        form.querySelectorAll('.appraisal-pearl').forEach(function (pearl) {
+            var ton = parseFloat(pearl.getAttribute('data-ton')) || 0;
+            var total = 0;
+            pearl.querySelectorAll('.input-appraisal-vien').forEach(function (el) {
+                var v = parseFloat(el.value);
+                if (!isNaN(v) && v > 0) total += v;
+            });
+            var totalEl = pearl.querySelector('.appraisal-total');
+            if (totalEl) {
+                totalEl.textContent = total;
+                var rem = ton - total;
+                totalEl.classList.toggle('text-danger', ton > 0 && Math.abs(rem) > 0.0001);
+                totalEl.classList.toggle('text-success', ton > 0 && Math.abs(rem) <= 0.0001);
+            }
+        });
+    }
+
+    form.querySelectorAll('.btn-add-row').forEach(function (btn) {
+        btn.addEventListener('click', function () { cloneRow(this); });
+    });
+
+    form.addEventListener('input', function (e) {
+        if (e.target.classList && e.target.classList.contains('input-appraisal-vien')) updateTotals();
+    });
+
+    form.addEventListener('click', function (e) {
+        var rm = e.target.closest('.btn-remove-row');
+        if (rm) removeRow(rm);
+    });
+
+    updateTotals();
+})();
+</script>
