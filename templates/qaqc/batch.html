@@ -54,23 +54,18 @@
             </div>
         </div>
     </div>
-    <?php if($jatbi->permission(['batch.add']) == 'true'){ ?>
-    <div class="position-fixed bottom right z-3 dropup-center dropup" style="--bottom:40px;--right:20px">
-        <button class="btn btn-eclo rounded-circle width height d-flex align-items-center justify-content-center "
-            style="--width:70px;--height:70px;" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="ti ti-menu-2 fs-1" aria-hidden="true"></i>
-        </button>
-        <ul class="dropdown-menu min-width bg-transparent border-0 justify-content-center p-2" style="--min-width:100%">
-            <li class="my-2">
-                <a class="btn rounded-circle btn-warning width height d-flex justify-content-center align-items-center p-1"
-                    data-action="modal" data-url="<?=$jatbi->url('/qaqc/batch-add')?>"
-                    style="--width:50px;--height:50px;">
-                    <i class="ti ti-plus fs-3" aria-hidden="true"></i>
-                </a>
-            </li>
-        </ul>
+
+    <!-- Không còn nút "+" tạo lô riêng ở đây nữa. Tạo lô sản xuất mới +
+         nhập kho Vệ Sinh giờ gộp chung 1 bước, thực hiện tại trang
+         "Kho Vệ Sinh" (menu /qaqc/stage/VS) -> bấm nút "+" ở đó. -->
+
+    <div class="alert alert-light border-0 rounded-4 small mb-3">
+        <i class="ti ti-info-circle me-1"></i>
+        <?=$jatbi->lang('Đây là danh sách tổng hợp TẤT CẢ lô sản xuất ở mọi kho. Muốn tạo lô sản xuất mới, vào menu')?>
+        <a href="<?=$jatbi->url('/qaqc/stage/VS')?>" class="pjax-load fw-semibold"><?=$jatbi->lang('Kho Vệ Sinh')?></a>
+        <?=$jatbi->lang('và bấm nút "+".')?>
     </div>
-    <?php } ?>
+
     <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
         <div class="card-body">
             <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"

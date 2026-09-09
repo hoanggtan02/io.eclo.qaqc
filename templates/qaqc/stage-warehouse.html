@@ -27,14 +27,6 @@
                         </div>
                         <hr class="border-secondary border-opacity-50 my-2">
                         <div class="px-3">
-                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Kho")?></label>
-                            <select name="stage" class="form-select rounded-4 filter-input" id="stage-select">
-                                <?php foreach($stage_filter_options as $opt){ ?>
-                                <option value="<?=$opt['value']?>" <?= ($opt['value'] == ($stage_default ?? '')) ? 'selected' : '' ?>><?=$opt['text']?></option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <div class="px-3 mt-3">
                             <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Loại ngọc")?></label>
                             <select name="pearl" class="form-select rounded-4 filter-input">
                                 <?php foreach($pearl_filter_options as $opt){ ?>
@@ -54,39 +46,53 @@
             </div>
         </div>
     </div>
+
+    <?php if(($stage_code ?? '') === 'VS' && $jatbi->permission(['stage_import']) == 'true'){ ?>
+    <div class="position-fixed bottom right z-3 dropup-center dropup" style="--bottom:40px;--right:20px">
+        <button class="btn btn-eclo rounded-circle width height d-flex align-items-center justify-content-center "
+            style="--width:70px;--height:70px;" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="ti ti-menu-2 fs-1" aria-hidden="true"></i>
+        </button>
+        <ul class="dropdown-menu min-width bg-transparent border-0 justify-content-center p-2" style="--min-width:100%">
+            <li class="my-2">
+                <a class="btn rounded-circle btn-warning width height d-flex justify-content-center align-items-center p-1"
+                    data-action="modal" data-url="<?=$jatbi->url('/qaqc/vs-add')?>"
+                    style="--width:50px;--height:50px;">
+                    <i class="ti ti-plus fs-3" aria-hidden="true"></i>
+                </a>
+            </li>
+        </ul>
+    </div>
+    <?php } ?>
+
     <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
         <div class="card-body">
+            <?php if(!empty($stage_desc)){ ?>
+            <div class="alert alert-info border-0 rounded-4 small mb-3">
+                <i class="ti ti-info-circle me-1"></i>
+                <?=$stage_desc?>
+            </div>
+            <?php } ?>
             <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
-                data-processing="true" data-page-length="10" data-searching="false" data-paging="true"
-                data-state-save='false' style="width:100%">
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                data-state-save='true' style="width:100%">
                 <thead>
                     <tr>
-                        <th data-name="code" data-orderable="false" class="text-nowrap " data-visible="true"
-                            data-class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
+                        <th data-name="code" data-searchable="true" data-orderable="true" class="text-nowrap"
+                            data-visible="true" data-class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
                         <th data-name="pearl_name" data-orderable="false" class="" data-visible="true"
-                            data-class="text-start"><?=$jatbi->lang("Loại ngọc")?></th>
-                        <th data-name="stage_name" data-orderable="false" class="text-nowrap " data-visible="true"
-                            data-class="text-center"><?=$jatbi->lang("Đang ở kho")?></th>
-                        <th data-name="weight_kg" data-orderable="false" class="text-nowrap " data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Chi tiết ngọc")?></th>
+                        <th data-name="weight_kg" data-orderable="false" class="text-nowrap" data-visible="true"
                             data-class="text-end"><?=$jatbi->lang("Kg tồn")?></th>
-                        <th data-name="amount" data-orderable="false" class="text-nowrap " data-visible="true"
+                        <th data-name="amount" data-orderable="false" class="text-nowrap" data-visible="true"
                             data-class="text-end"><?=$jatbi->lang("Viên tồn")?></th>
-                        <th data-name="last_date" data-orderable="false" class="text-nowrap " data-visible="true"
+                        <th data-name="date" data-orderable="false" class="text-nowrap" data-visible="true"
                             data-class="text-nowrap"><?=$jatbi->lang("Ngày vào kho")?></th>
-                        <th data-name="action" data-orderable="false" class="text-nowrap " data-visible="true"
-                            data-class="text-end"><?=$jatbi->lang("Tùy chọn")?></th>
+                        <th data-name="action" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Thao tác")?></th>
                     </tr>
                 </thead>
             </table>
         </div>
     </div>
 </div>
-<?php if (!empty($stage_default)): ?>
-<script>
-// Tự động trigger filter khi vào từ sidebar kho riêng
-document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.querySelector('.button-filter');
-    if (btn) { setTimeout(function(){ btn.click(); }, 200); }
-});
-</script>
-<?php endif; ?>

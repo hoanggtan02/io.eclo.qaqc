@@ -206,24 +206,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 ];
 
                 // Chỉ lô đang chạy mới thao tác được kho
+                // (Không còn bước "Nhập kho Vệ sinh" tách riêng nữa — lô được
+                // tạo trực tiếp tại Kho Vệ Sinh với tồn kho ngay từ đầu, xem
+                // route /vs-add. Từ VS chỉ còn thao tác Chuyển kho như KX/LT.)
                 if ($data['status'] === 'A' && $stage_info) {
-                    if ($stage_info['code'] === 'VS') {
-                        $importedVS = $app->has("production_stage_movements", [
-                            "batch" => $data['id'],
-                            "stage" => $stage_info['id'],
-                            "type" => "import",
-                            "deleted" => 0,
-                        ]);
-                        if (!$importedVS) {
-                            $buttons[] = [
-                                'type' => 'button',
-                                'name' => $jatbi->lang("Nhập kho Vệ sinh"),
-                                'permission' => ['stage_import'],
-                                'action' => ['data-url' => '/qaqc/warehouse-import/' . $data['id'], 'data-action' => 'modal']
-                            ];
-                        }
-                    }
-
                     if (isset($stageFlow[$stage_info['code']])) {
                         $stockHere = $getBatchStockAtStage($data['id'], $stage_info['id']);
                         if (!empty($stockHere)) {
@@ -300,14 +286,22 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
     })->setPermissions(['batch']);
 
-    $app->router('/batch-add', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template) {
-        $vars['title'] = $jatbi->lang("Tạo lô sản xuất");
+
+    // ============================================================
+    // 1c'. TẠO LÔ SẢN XUẤT & NHẬP KHO VỆ SINH — GỘP LÀM 1 BƯỚC
+    //     Trước đây: /batch-add (khai báo initial) rồi mới /warehouse-import
+    //     (nhập số thực nhận) — 2 request, 2 lần thao tác cho cùng 1 lô.
+    //     Giờ: nhập thẳng 1 lần tại đây — vừa tạo production_batches +
+    //     production_batch_items, vừa ghi luôn phiếu production_stage_movements
+    //     (type=import, stage=VS) trong CÙNG 1 transaction. Lô luôn có tồn
+    //     kho ngay tại Kho Vệ Sinh (VS) kể từ giây phút tạo ra.
+    // ============================================================
+
+    $app->router('/vs-add', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $getStageByCode) {
+        $vars['title'] = $jatbi->lang("Tạo lô & Nhập kho Vệ Sinh");
 
         if ($app->method() === 'GET') {
-            $vars['data'] = [];
-            $vars['items'] = [];
             $vars['pearl_options'] = [];
-
             $app->select("pearl", ["id", "name", "unit_mode"], ["deleted" => 0, "status" => 'A'], function ($p) use (&$vars) {
                 $vars['pearl_options'][] = [
                     'value' => $p['id'],
@@ -316,12 +310,13 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 ];
             });
 
-            echo $app->render($template . '/qaqc/batch-post.html', $vars, $jatbi->ajax());
+            echo $app->render($template . '/qaqc/vs-add-post.html', $vars, $jatbi->ajax());
         } elseif ($app->method() === 'POST') {
             $app->header(['Content-Type' => 'application/json']);
 
             $error = [];
             $code = trim($app->xss($_POST['code'] ?? ''));
+            $notes = $app->xss($_POST['notes'] ?? '');
             $itemsRaw = $_POST['items'] ?? [];
             $cleanItems = [];
 
@@ -338,8 +333,8 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             if (empty($error)) {
                 foreach ($itemsRaw as $row) {
                     $pearl_id = $app->xss($row['pearl'] ?? '');
-                    $kg = $app->xss($row['weight_kg_initial'] ?? '');
-                    $vien = $app->xss($row['amount_initial'] ?? '');
+                    $kg = $app->xss($row['weight_kg'] ?? '');
+                    $vien = $app->xss($row['amount'] ?? '');
 
                     if ($pearl_id === '') {
                         $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn loại ngọc cho tất cả các dòng'), 'sound' => $setting['site_sound']];
@@ -350,14 +345,14 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     $hasVien = ($vien !== '' && is_numeric($vien) && floatval($vien) > 0);
 
                     if (!$hasKg && !$hasVien) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập kg hoặc số viên hợp lệ'), 'sound' => $setting['site_sound']];
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập kg hoặc số viên thực nhận hợp lệ'), 'sound' => $setting['site_sound']];
                         break;
                     }
 
                     $cleanItems[] = [
                         'pearl' => $pearl_id,
-                        'weight_kg_initial' => $hasKg ? floatval($kg) : null,
-                        'amount_initial' => $hasVien ? floatval($vien) : null,
+                        'weight_kg' => $hasKg ? floatval($kg) : 0,
+                        'amount' => $hasVien ? floatval($vien) : 0,
                     ];
                 }
             }
@@ -377,46 +372,100 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 }
             }
 
-            if (empty($error)) {
-                // Giai đoạn khởi đầu mặc định = Kho vệ sinh (VS)
-                $vs_stage = $app->get("warehouse_stages", ["id"], ["code" => "VS"]);
-                $now = date('Y-m-d H:i:s');
-                $userId = $app->getSession("accounts")['id'] ?? 0;
+            if (!empty($error)) {
+                echo json_encode($error);
+                return;
+            }
 
-                $insert = [
+            $vsStage = $getStageByCode('VS');
+            if (!$vsStage) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Chưa cấu hình kho Vệ sinh (warehouse_stages.code = VS)')]);
+                return;
+            }
+            $vsStageId = $vsStage['id'];
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $app->getSession("accounts")['id'] ?? 0;
+            $newBatchId = null;
+
+            $ok = $app->action(function () use ($app, $code, $notes, $cleanItems, $userId, $now, $vsStageId, &$newBatchId) {
+                // Re-check trùng mã lô ngay trong transaction, phòng 2 người
+                // bấm lưu gần như đồng thời cùng 1 mã (race condition).
+                if ($app->has('production_batches', ['code' => $code])) {
+                    return false;
+                }
+
+                // 1. Tạo lô sản xuất — vào thẳng Kho Vệ Sinh (VS)
+                $app->insert("production_batches", [
                     "code" => $code,
-                    "current_stage" => $vs_stage['id'] ?? null,
+                    "current_stage" => $vsStageId,
                     "status" => 'A',
-                    "notes" => $app->xss($_POST['notes'] ?? ''),
+                    "notes" => $notes,
                     "date" => $now,
                     "user" => $userId,
-                ];
-
-                $app->insert("production_batches", $insert);
+                ]);
                 $batchId = $app->id();
+                if (!$batchId) return false;
+                $newBatchId = $batchId;
 
-                $insertedItems = [];
+                // 2. Tạo dòng chi tiết lô — dùng luôn số thực nhận làm initial
+                //    (không còn khái niệm "khai báo" tách khỏi "thực nhận" nữa)
                 foreach ($cleanItems as $ci) {
-                    $itemInsert = [
+                    $app->insert("production_batch_items", [
                         "batch" => $batchId,
                         "pearl" => $ci['pearl'],
-                        "weight_kg_initial" => $ci['weight_kg_initial'],
-                        "amount_initial" => $ci['amount_initial'],
+                        "weight_kg_initial" => $ci['weight_kg'] > 0 ? $ci['weight_kg'] : null,
+                        "amount_initial" => $ci['amount'] > 0 ? $ci['amount'] : null,
                         "date" => $now,
                         "user" => $userId,
                         "deleted" => 0,
-                    ];
-                    $app->insert("production_batch_items", $itemInsert);
-                    $insertedItems[] = $itemInsert;
+                    ]);
                 }
 
-                $jatbi->logs('production_batches', 'add', ['batch' => $insert, 'items' => $insertedItems]);
-                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Tạo lô sản xuất thành công'), 'url' => $_SERVER['HTTP_REFERER']]);
+                // 3. Ghi luôn phiếu nhập kho Vệ Sinh trong CÙNG giao dịch —
+                //    đây chính là điểm gộp: không còn bước "Nhập kho Vệ sinh"
+                //    tách riêng, lô có tồn kho ở VS ngay khi tạo xong.
+                $app->insert("production_stage_movements", [
+                    "batch" => $batchId,
+                    "stage" => $vsStageId,
+                    "type" => "import",
+                    "stage_related" => null,
+                    "notes" => "Nhập ngọc thô vào kho Vệ sinh (tạo lô trực tiếp)",
+                    "date" => $now,
+                    "user" => $userId,
+                    "deleted" => 0,
+                ]);
+                $movementId = $app->id();
+                if (!$movementId) return false;
+
+                foreach ($cleanItems as $ci) {
+                    $app->insert("production_stage_movement_items", [
+                        "movement" => $movementId,
+                        "pearl" => $ci['pearl'],
+                        "weight_kg" => $ci['weight_kg'],
+                        "amount" => $ci['amount'],
+                        "weight_kg_hao_hut" => 0,
+                        "amount_hao_hut" => 0,
+                        "deleted" => 0,
+                    ]);
+                }
+
+                return true;
+            });
+
+            if ($ok) {
+                $jatbi->logs('production_batches', 'add_direct_to_vs', ['code' => $code, 'batch' => $newBatchId, 'items' => $cleanItems]);
+                echo json_encode([
+                    'status' => 'success',
+                    'content' => $jatbi->lang('Tạo lô & nhập kho Vệ sinh thành công'),
+                    'url' => $jatbi->url('/qaqc/stage/VS'),
+                ]);
             } else {
-                echo json_encode($error);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Mã lô vừa bị trùng hoặc có lỗi xảy ra, vui lòng thử lại')]);
             }
         }
-    })->setPermissions(['batch.add']);
+    })->setPermissions(['stage_import']);
+
 
     $app->router("/batch-edit/{id}", ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $batchItemsWithPearl) {
         $vars['title'] = $jatbi->lang("Sửa lô sản xuất");
@@ -565,137 +614,6 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
         }
     })->setPermissions(['batch.edit']);
-
-
-    // ============================================================
-    // 1c. GIAI ĐOẠN 2 — NHẬP NGỌC THÔ VÀO KHO VỆ SINH
-    //     Chỉ áp dụng cho lô đang ở kho VS và CHƯA từng nhập kho VS.
-    //     Ghi 1 phiếu production_stage_movements (type=import, stage=VS)
-    //     + các dòng production_stage_movement_items (kg/viên thực nhận).
-    // ============================================================
-
-    $app->router("/warehouse-import/{id}", ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $batchItemsWithPearl, $getStageByCode) {
-        $vars['title'] = $jatbi->lang("Nhập kho Vệ sinh");
-
-        $batch = $app->get("production_batches", "*", ["id" => $vars['id'], "deleted" => 0]);
-        if (!$batch) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Không tìm thấy lô sản xuất')], $jatbi->ajax());
-            return;
-        }
-
-        $vsStage = $getStageByCode('VS');
-        if (!$vsStage) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Chưa cấu hình kho Vệ sinh (warehouse_stages.code = VS)')], $jatbi->ajax());
-            return;
-        }
-
-        if ($batch['current_stage'] != $vsStage['id']) {
-            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này không còn ở kho Vệ sinh')], $jatbi->ajax());
-            return;
-        }
-
-        $already = $app->has("production_stage_movements", [
-            "batch" => $vars['id'], "stage" => $vsStage['id'], "type" => "import", "deleted" => 0,
-        ]);
-
-        if ($app->method() === 'GET') {
-            if ($already) {
-                echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Lô này đã được nhập kho Vệ sinh rồi')], $jatbi->ajax());
-                return;
-            }
-            $vars['batch'] = $batch;
-            $vars['items'] = $batchItemsWithPearl($vars['id']);
-            echo $app->render($template . '/qaqc/warehouse-import-post.html', $vars, $jatbi->ajax());
-        } elseif ($app->method() === 'POST') {
-            $app->header(['Content-Type' => 'application/json']);
-
-            if ($already) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Lô này đã được nhập kho Vệ sinh rồi')]);
-                return;
-            }
-
-            $linesRaw = $_POST['lines'] ?? [];
-            if (!is_array($linesRaw) || count($linesRaw) === 0) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Thiếu dữ liệu chi tiết lô')]);
-                return;
-            }
-
-            $items = $batchItemsWithPearl($vars['id']);
-            $itemsById = [];
-            foreach ($items as $it) { $itemsById[$it['id']] = $it; }
-
-            $cleanLines = [];
-            $error = '';
-            foreach ($linesRaw as $itemId => $row) {
-                if (!isset($itemsById[$itemId])) continue;
-
-                $kg = $app->xss($row['weight_kg'] ?? '');
-                $vien = $app->xss($row['amount'] ?? '');
-                $kgVal = (is_numeric($kg) && floatval($kg) > 0) ? floatval($kg) : 0;
-                $vienVal = (is_numeric($vien) && floatval($vien) > 0) ? floatval($vien) : 0;
-
-                if ($kgVal <= 0 && $vienVal <= 0) {
-                    $error = $jatbi->lang('Vui lòng nhập kg hoặc số viên thực nhận cho tất cả các dòng');
-                    break;
-                }
-
-                $cleanLines[] = [
-                    'pearl' => $itemsById[$itemId]['pearl'],
-                    'weight_kg' => $kgVal,
-                    'amount' => $vienVal,
-                ];
-            }
-
-            if ($error === '' && count($cleanLines) === 0) {
-                $error = $jatbi->lang('Không có dòng dữ liệu hợp lệ');
-            }
-
-            if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
-                return;
-            }
-
-            $userId = $app->getSession("accounts")['id'] ?? 0;
-            $now = date('Y-m-d H:i:s');
-            $batchId = $vars['id'];
-            $vsStageId = $vsStage['id'];
-
-            $ok = $app->action(function () use ($app, $batchId, $vsStageId, $cleanLines, $userId, $now) {
-                $app->insert("production_stage_movements", [
-                    "batch" => $batchId,
-                    "stage" => $vsStageId,
-                    "type" => "import",
-                    "stage_related" => null,
-                    "notes" => "Nhập ngọc thô vào kho Vệ sinh",
-                    "date" => $now,
-                    "user" => $userId,
-                    "deleted" => 0,
-                ]);
-                $movementId = $app->id();
-                if (!$movementId) return false;
-
-                foreach ($cleanLines as $cl) {
-                    $app->insert("production_stage_movement_items", [
-                        "movement" => $movementId,
-                        "pearl" => $cl['pearl'],
-                        "weight_kg" => $cl['weight_kg'],
-                        "amount" => $cl['amount'],
-                        "weight_kg_hao_hut" => 0,
-                        "amount_hao_hut" => 0,
-                        "deleted" => 0,
-                    ]);
-                }
-                return true;
-            });
-
-            if ($ok) {
-                $jatbi->logs('production_stage_movements', 'warehouse_import', ['batch' => $batchId, 'lines' => $cleanLines]);
-                echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Nhập kho Vệ sinh thành công'), 'url' => $_SERVER['HTTP_REFERER']]);
-            } else {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Có lỗi xảy ra, vui lòng thử lại')]);
-            }
-        }
-    })->setPermissions(['stage_import']);
 
 
     // ============================================================
@@ -851,6 +769,8 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     // ============================================================
     // 1e. GIAI ĐOẠN 3 — DANH SÁCH "LÔ ĐANG TỒN TẠI TỪNG KHO"
     //     Hiển thị cho VS/KX/LT (CT sẽ do giai đoạn 4 xử lý riêng).
+    //     (Trang tổng hợp/audit — vẫn giữ, dùng lọc theo dropdown.
+    //     Xem thêm mục 1f bên dưới: 3 trang RIÊNG cho VS/KX/LT)
     // ============================================================
 
     $app->router('/stage-stock', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template) {
@@ -999,6 +919,148 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             echo json_encode(["draw" => $draw, "recordsTotal" => $count, "recordsFiltered" => $count, "data" => $datas]);
         }
     })->setPermissions(['stage_stock']);
+
+
+    // ============================================================
+    // 1f. TÁCH TỪNG KHO NỘI BỘ THÀNH TRANG RIÊNG
+    //     Kho Vệ Sinh (VS) / Kho Khoan Xuyên (KX) / Kho Lưu Trữ (LT)
+    //     Dùng chung 1 route /stage/{code} cho dễ bảo trì, nhưng mỗi
+    //     kho có menu + URL riêng (xem requests.php) nên người dùng
+    //     bấm vào là thấy đúng 1 kho, không phải lọc/đoán như trước.
+    //     Muốn mở rộng thêm kho khác: chỉ cần thêm 1 phần tử vào
+    //     $stageWarehouseConfig bên dưới + 1 dòng menu trong requests.php.
+    // ============================================================
+
+    $stageWarehouseConfig = [
+        'VS' => [
+            'title'      => $jatbi->lang('Kho Vệ Sinh'),
+            'permission' => 'stage_vs',
+            'desc'       => $jatbi->lang('Ngọc thô từ lô sản xuất nằm ở đây sau khi "Nhập kho Vệ sinh". Dùng nút Chuyển kho để đưa sang Kho Khoan Xuyên.'),
+        ],
+        'KX' => [
+            'title'      => $jatbi->lang('Kho Khoan Xuyên'),
+            'permission' => 'stage_kx',
+            'desc'       => $jatbi->lang('Ngọc đã vệ sinh, đang chờ/khoan xuyên tại đây. Dùng nút Chuyển kho để đưa sang Kho Lưu Trữ.'),
+        ],
+        'LT' => [
+            'title'      => $jatbi->lang('Kho Lưu Trữ'),
+            'permission' => 'stage_lt',
+            'desc'       => $jatbi->lang('Ngọc đã khoan xuyên, lưu tạm tại đây chờ đưa vào Kho Chế Tác. Dùng nút Chuyển kho để đưa sang Kho Chế Tác.'),
+        ],
+    ];
+
+    $app->router('/stage/{code}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template, $stageWarehouseConfig, $getStageByCode, $getBatchStockAtStage, $stageFlow) {
+        $code = strtoupper($app->xss($vars['code'] ?? ''));
+        if (!isset($stageWarehouseConfig[$code])) {
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Kho không hợp lệ')], $jatbi->ajax());
+            return;
+        }
+        $cfg = $stageWarehouseConfig[$code];
+
+        if ($jatbi->permission([$cfg['permission']]) != 'true') {
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Bạn không có quyền xem kho này')], $jatbi->ajax());
+            return;
+        }
+
+        $stageInfo = $getStageByCode($code);
+        if (!$stageInfo) {
+            echo $app->render($template . '/error.html', ['content' => $jatbi->lang('Chưa cấu hình kho này trong warehouse_stages')], $jatbi->ajax());
+            return;
+        }
+
+        if ($app->method() === 'GET') {
+            $vars['title'] = $cfg['title'];
+            $vars['stage_code'] = $code;
+            $vars['stage_desc'] = $cfg['desc'];
+            $vars['pearl_filter_options'] = array_merge(
+                [['value' => '', 'text' => $jatbi->lang('Tất cả')]],
+                $app->select('pearl', ['id(value)', 'name(text)'], ['deleted' => 0, 'status' => 'A'])
+            );
+            echo $app->render($template . '/qaqc/stage-warehouse.html', $vars);
+        } elseif ($app->method() === 'POST') {
+            $app->header(['Content-Type' => 'application/json']);
+
+            $draw = isset($_POST['draw']) ? intval($_POST['draw']) : 0;
+            $start = isset($_POST['start']) ? intval($_POST['start']) : 0;
+            $length = isset($_POST['length']) ? intval($_POST['length']) : ($setting['site_page'] ?? 10);
+            $searchValue = isset($_POST['search']['value']) ? $_POST['search']['value'] : '';
+
+            $where = [
+                "AND" => [
+                    "current_stage" => $stageInfo['id'],
+                    "status" => 'A',
+                    "deleted" => 0,
+                ],
+                "LIMIT" => [$start, $length],
+                "ORDER" => ["id" => "DESC"],
+            ];
+
+            if ($searchValue !== '') {
+                $where['AND']['code[~]'] = $searchValue;
+            }
+
+            if (isset($_POST['pearl']) && $_POST['pearl'] !== '') {
+                $pearlFilter = $app->xss($_POST['pearl']);
+                $batchIdsForPearl = [];
+                $app->select("production_batch_items", ["batch"], [
+                    "pearl" => $pearlFilter,
+                    "deleted" => 0,
+                ], function ($row) use (&$batchIdsForPearl) {
+                    $batchIdsForPearl[] = $row['batch'];
+                });
+                $where['AND']['id'] = !empty($batchIdsForPearl) ? array_values(array_unique($batchIdsForPearl)) : [0];
+            }
+
+            $count = $app->count("production_batches", ["AND" => $where['AND']]);
+            $datas = [];
+
+            $app->select("production_batches", "*", $where, function ($b) use (&$datas, $app, $jatbi, $code, $stageInfo, $stageFlow, $getBatchStockAtStage) {
+                $stock = $getBatchStockAtStage($b['id'], $stageInfo['id']);
+
+                $lines = [];
+                $totalKg = 0;
+                $totalVien = 0;
+                foreach ($stock as $s) {
+                    $parts = [];
+                    if ($s['weight_kg'] > 0) {
+                        $parts[] = number_format($s['weight_kg'], 2) . ' kg';
+                        $totalKg += floatval($s['weight_kg']);
+                    }
+                    if ($s['amount'] > 0) {
+                        $parts[] = number_format($s['amount']) . ' ' . $jatbi->lang("viên");
+                        $totalVien += floatval($s['amount']);
+                    }
+                    $lines[] = '<div class="small text-nowrap"><span class="fw-semibold">'
+                        . htmlspecialchars($s['pearl_name'] ?? $jatbi->lang("Không xác định")) . ':</span> ' . implode(' + ', $parts) . '</div>';
+                }
+
+                $buttons = [];
+
+                // Không còn bước "Nhập kho Vệ sinh" tách riêng nữa — mọi lô
+                // đã có tồn kho ngay tại VS từ lúc tạo (xem route /vs-add).
+                // Từ VS/KX/LT chỉ còn duy nhất thao tác "Chuyển kho".
+                if (!empty($stock) && isset($stageFlow[$code])) {
+                    $buttons[] = [
+                        'type' => 'button',
+                        'name' => $jatbi->lang("Chuyển kho"),
+                        'permission' => ['stage_transfer'],
+                        'action' => ['data-url' => '/qaqc/transfer/' . $b['id'], 'data-action' => 'modal']
+                    ];
+                }
+
+                $datas[] = [
+                    "code" => '<span class="fw-bold">#' . htmlspecialchars($b['code']) . '</span>',
+                    "pearl_name" => !empty($lines) ? implode('', $lines) : '<span class="text-secondary">-</span>',
+                    "weight_kg" => $totalKg > 0 ? number_format($totalKg, 2) . ' kg' : '-',
+                    "amount" => $totalVien > 0 ? number_format($totalVien) . ' ' . $jatbi->lang("viên") : '-',
+                    "date" => date('d/m/Y H:i', strtotime($b['date'])),
+                    "action" => $app->component("action", ["button" => $buttons]),
+                ];
+            });
+
+            echo json_encode(["draw" => $draw, "recordsTotal" => $count, "recordsFiltered" => $count, "data" => $datas]);
+        }
+    })->setPermissions(['stage_vs', 'stage_kx', 'stage_lt']);
 
 
     // ============================================================
