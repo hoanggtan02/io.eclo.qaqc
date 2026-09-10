@@ -1505,7 +1505,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 $isMaxima = (($pInfo['unit_mode'] ?? '') === 'kg_and_vien');
                 $badgeUnit = $isMaxima
                     ? '<span class="badge bg-info ms-1">' . $jatbi->lang("Kg+viên") . '</span>'
-                    : '<span class="badge bg-warning text-dark ms-1">' . $jatbi->lang("Kg") . '</span>';
+                    : '<span class="badge bg-warning text-dark ms-1">' . $jatbi->lang("Kg → viên") . '</span>';
 
                 $bCode = $batchMap[$r['batch']]['code'] ?? '-';
                 $mId = $r['movement_id'];
@@ -1515,7 +1515,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     "pearl_name" => '<span class="fw-semibold text-body">' . htmlspecialchars($pName) . '</span>' . $badgeUnit,
                     "code" => '<span class="fw-bold text-body">#' . htmlspecialchars($bCode) . '</span>',
                     "weight_kg" => $r['weight_kg'] > 0 ? number_format($r['weight_kg'], 2) . ' kg' : '-',
-                    "amount" => ($isMaxima && $r['amount'] > 0) ? number_format($r['amount']) . ' ' . $jatbi->lang("viên") : '<span class="text-secondary">-</span>',
+                    "amount" => $r['amount'] > 0 ? number_format($r['amount']) . ' ' . $jatbi->lang("viên") : '<span class="text-secondary">-</span>',
                     "date" => date('d/m/Y H:i', strtotime($r['date'])),
                 ];
             }
@@ -1524,11 +1524,6 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
     })->setPermissions(['stage_vs', 'stage_kx', 'stage_lt']);
 
-
-    // ============================================================
-    // 1g. CHUYỂN KHO THEO DANH SÁCH NGỌC TỒN KHO (/stage-transfer/{code})
-    //     Quản lý danh sách chuyển bằng Cookie chuẩn Jatbi/Eclo
-    // ============================================================
 
     $getStageStockAgg = function ($stageId) use ($app, $jatbi) {
         $agg = [];
@@ -1602,28 +1597,52 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         return $stockItems;
     };
 
-    $app->router('/stage-transfer/{code}', ['GET'], function ($vars) use ($app, $jatbi, $setting, $template, $stageWarehouseConfig, $getStageByCode, $getStageStockAgg) {
+    // Bảng các hướng chuyển hợp lệ cho engine "giỏ hàng theo kho".
+    // KX có 2 đích: LT (tiến trình tiếp theo) hoặc VS (trả ngược về Vệ Sinh, vd phát hiện ngọc chưa sạch/lỗi).
+    // Đích đầu tiên trong mảng là hướng mặc định khi không truyền ?to=.
+    $transferAllowedTo = [
+        'VS' => ['KX'],
+        'KX' => ['LT', 'VS'],
+    ];
+
+    // Chọn ra mã kho đích hợp lệ: ưu tiên $requested nếu nằm trong danh sách cho phép của $code,
+    // nếu không thì trả về đích mặc định (phần tử đầu tiên). Trả về null nếu $code không hỗ trợ chuyển.
+    $resolveTransferTo = function ($code, $requested) use ($transferAllowedTo) {
+        $allowed = $transferAllowedTo[$code] ?? [];
+        if (empty($allowed)) return null;
+        $requested = strtoupper(trim((string)$requested));
+        if ($requested !== '' && in_array($requested, $allowed, true)) {
+            return $requested;
+        }
+        return $allowed[0];
+    };
+
+    $app->router('/stage-transfer/{code}', ['GET'], function ($vars) use ($app, $jatbi, $setting, $template, $stageWarehouseConfig, $getStageByCode, $getStageStockAgg, $transferAllowedTo, $resolveTransferTo) {
         $code = strtoupper($app->xss($vars['code'] ?? ''));
-        if (!in_array($code, ['VS', 'KX'])) {
+        if (!isset($transferAllowedTo[$code])) {
             echo $app->render($setting['template'] . '/pages/error.html', ['content' => $jatbi->lang('Kho không hỗ trợ chức năng chuyển này')], $jatbi->ajax());
             return;
         }
 
         $fromStage = $getStageByCode($code);
-        $toStageCode = ($code === 'VS') ? 'KX' : 'LT';
-        $toStage = $getStageByCode($toStageCode);
+        $toStageCode = $resolveTransferTo($code, $app->xss($_GET['to'] ?? ''));
+        $toStage = $toStageCode ? $getStageByCode($toStageCode) : null;
 
         if (!$fromStage || !$toStage) {
             echo $app->render($setting['template'] . '/pages/error.html', ['content' => $jatbi->lang('Chưa cấu hình kho nguồn hoặc kho đích trong warehouse_stages')], $jatbi->ajax());
             return;
         }
 
+        // Khoá lưu giỏ hàng theo cặp (nguồn_đích) để 2 hướng KX→LT và KX→VS
+        // không bị lẫn dữ liệu vào nhau khi cùng thao tác trên kho KX.
+        $sessionKey = $code . '_' . $toStageCode;
+
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
         if (json_last_error() !== JSON_ERROR_NONE) {
             $transfer_session = [];
         }
 
-        $data = $transfer_session[$code] ?? [];
+        $data = $transfer_session[$sessionKey] ?? [];
         $session_items = $data['items'] ?? [];
 
         // Làm mới tồn kho thực tế cho từng dòng đã chọn
@@ -1644,9 +1663,28 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
         unset($item);
 
+        // Danh sách hướng đích khả dụng để hiển thị tab chọn hướng trên giao diện
+        // (VS chỉ có 1 lựa chọn nên sẽ không hiện tab; KX có 2 lựa chọn: LT / VS).
+        $directionOptions = [];
+        foreach ($transferAllowedTo[$code] as $optCode) {
+            $optStage = $getStageByCode($optCode);
+            if (!$optStage) continue;
+            $directionOptions[] = [
+                'code' => $optCode,
+                'name' => $optStage['name'],
+                'active' => ($optCode === $toStageCode),
+                // "Trả về" khi đích không phải là bước tiến trình tiếp theo mặc định (phần tử đầu tiên)
+                'is_return' => ($optCode !== $transferAllowedTo[$code][0]),
+            ];
+        }
+
         $vars['from_stage'] = $fromStage;
         $vars['to_stage'] = $toStage;
+        $vars['direction_options'] = $directionOptions;
         $vars['allow_loss'] = ($code === 'KX');
+        // Chỉ bước KX -> LT mới là bước "khoan xiên xong, quy đổi ra viên".
+        // KX -> VS (trả ngược hàng lỗi) thì không quy đổi vì ngọc chưa được khoan.
+        $vars['allow_convert'] = ($code === 'KX' && $toStageCode === 'LT');
         $vars['data'] = $data;
         $vars['SelectProducts'] = $session_items;
         $vars['stock_items'] = $stockItems;
@@ -1658,17 +1696,19 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     // --- CÁC ROUTE CẬP NHẬT DỮ LIỆU CHUYỂN KHO QUA COOKIE ---
 
     // 1. Thêm ngọc vào danh sách
-    $app->router('/stage-transfer-update/{code}/add/{batch}/{pearl}', 'POST', function ($vars) use ($app, $jatbi, $getStageByCode, $getStageStockAgg) {
+    $app->router('/stage-transfer-update/{code}/{to}/add/{batch}/{pearl}', 'POST', function ($vars) use ($app, $jatbi, $getStageByCode, $getStageStockAgg, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
         $batchId = intval($vars['batch'] ?? 0);
         $pearlId = intval($vars['pearl'] ?? 0);
 
         $fromStage = $getStageByCode($code);
-        if (!$fromStage) {
+        if (!$fromStage || !$toCode) {
             echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Kho không hợp lệ')]);
             return;
         }
+        $sessionKey = $code . '_' . $toCode;
 
         $stockItems = $getStageStockAgg($fromStage['id']);
         $item = null;
@@ -1685,17 +1725,17 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (!isset($transfer_session[$code])) {
-            $transfer_session[$code] = ['items' => [], 'notes' => ''];
+        if (!isset($transfer_session[$sessionKey])) {
+            $transfer_session[$sessionKey] = ['items' => [], 'notes' => ''];
         }
 
         $rowKey = $batchId . '_' . $pearlId;
-        if (isset($transfer_session[$code]['items'][$rowKey])) {
+        if (isset($transfer_session[$sessionKey]['items'][$rowKey])) {
             echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Mã lô này đã có trong danh sách')]);
             return;
         }
 
-        $transfer_session[$code]['items'][$rowKey] = [
+        $transfer_session[$sessionKey]['items'][$rowKey] = [
             'batch' => $batchId,
             'pearl' => $pearlId,
             'batch_code' => $item['batch_code'],
@@ -1703,7 +1743,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             'unit_mode' => $item['unit_mode'],
             'stock_kg' => floatval($item['weight_kg']),
             'stock_vien' => floatval($item['amount']),
-            'weight_kg' => floatval($item['weight_kg']),
+            // Ngọc "kg_to_vien" ở bước KX -> LT: không chuyển kg, toàn bộ
+            // (trừ hao hụt) sẽ quy đổi hết thành viên -> mặc định 0 kg.
+            'weight_kg' => ($code === 'KX' && $toCode === 'LT' && (($item['unit_mode'] ?? 'kg') !== 'kg_and_vien'))
+                ? 0 : floatval($item['weight_kg']),
             'amount' => floatval($item['amount']),
             'weight_kg_hao_hut' => 0,
             'amount_hao_hut' => 0,
@@ -1714,36 +1757,45 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 2. Xóa khỏi danh sách
-    $app->router('/stage-transfer-update/{code}/deleted/{key}', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/deleted/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $key = $app->xss($vars['key'] ?? '');
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code]['items'][$key])) {
-            unset($transfer_session[$code]['items'][$key]);
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            unset($transfer_session[$sessionKey]['items'][$key]);
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
         }
         echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Đã xóa khỏi danh sách')]);
     });
 
     // 3. Cập nhật kg chuyển
-    $app->router('/stage-transfer-update/{code}/weight_kg/{key}', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/weight_kg/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $key = $app->xss($vars['key'] ?? '');
         $val = floatval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code]['items'][$key])) {
-            $stockKg = floatval($transfer_session[$code]['items'][$key]['stock_kg'] ?? 0);
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockKg = floatval($transfer_session[$sessionKey]['items'][$key]['stock_kg'] ?? 0);
+            $rowUnitMode = $transfer_session[$sessionKey]['items'][$key]['unit_mode'] ?? 'kg';
+            $isConvertRow = ($code === 'KX' && $toCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
+            // Ngọc quy đổi kg -> viên ở bước KX -> LT: không cho chuyển kg, luôn ép về 0
+            // (toàn bộ trừ hao hụt phải quy đổi hết thành viên).
+            if ($isConvertRow) $val = 0;
             if ($val < 0) $val = 0;
             if ($val > $stockKg) $val = $stockKg;
-            $transfer_session[$code]['items'][$key]['weight_kg'] = $val;
+            $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = $val;
 
-            $lossKg = floatval($transfer_session[$code]['items'][$key]['weight_kg_hao_hut'] ?? 0);
+            $lossKg = floatval($transfer_session[$sessionKey]['items'][$key]['weight_kg_hao_hut'] ?? 0);
             if ($val + $lossKg > $stockKg) {
-                $transfer_session[$code]['items'][$key]['weight_kg_hao_hut'] = max(0, round($stockKg - $val, 2));
+                $transfer_session[$sessionKey]['items'][$key]['weight_kg_hao_hut'] = max(0, round($stockKg - $val, 2));
             }
 
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
@@ -1754,22 +1806,24 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 4. Cập nhật viên chuyển
-    $app->router('/stage-transfer-update/{code}/amount/{key}', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/amount/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $key = $app->xss($vars['key'] ?? '');
         $val = intval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code]['items'][$key])) {
-            $stockVien = intval($transfer_session[$code]['items'][$key]['stock_vien'] ?? 0);
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockVien = intval($transfer_session[$sessionKey]['items'][$key]['stock_vien'] ?? 0);
             if ($val < 0) $val = 0;
             if ($stockVien > 0 && $val > $stockVien) $val = $stockVien;
-            $transfer_session[$code]['items'][$key]['amount'] = $val;
+            $transfer_session[$sessionKey]['items'][$key]['amount'] = $val;
 
-            $lossVien = intval($transfer_session[$code]['items'][$key]['amount_hao_hut'] ?? 0);
+            $lossVien = intval($transfer_session[$sessionKey]['items'][$key]['amount_hao_hut'] ?? 0);
             if ($stockVien > 0 && $val + $lossVien > $stockVien) {
-                $transfer_session[$code]['items'][$key]['amount_hao_hut'] = max(0, $stockVien - $val);
+                $transfer_session[$sessionKey]['items'][$key]['amount_hao_hut'] = max(0, $stockVien - $val);
             }
 
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
@@ -1780,19 +1834,30 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 5. Cập nhật kg hao hụt (Kho KX)
-    $app->router('/stage-transfer-update/{code}/loss_kg/{key}', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/loss_kg/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $key = $app->xss($vars['key'] ?? '');
         $val = floatval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code]['items'][$key])) {
-            $stockKg = floatval($transfer_session[$code]['items'][$key]['stock_kg'] ?? 0);
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockKg = floatval($transfer_session[$sessionKey]['items'][$key]['stock_kg'] ?? 0);
             if ($val < 0) $val = 0;
             if ($val > $stockKg) $val = $stockKg;
-            $transfer_session[$code]['items'][$key]['weight_kg_hao_hut'] = $val;
-            $transfer_session[$code]['items'][$key]['weight_kg'] = max(0, round($stockKg - $val, 2));
+            $transfer_session[$sessionKey]['items'][$key]['weight_kg_hao_hut'] = $val;
+
+            $rowUnitMode = $transfer_session[$sessionKey]['items'][$key]['unit_mode'] ?? 'kg';
+            $isConvertRow = ($code === 'KX' && $toCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
+            if ($isConvertRow) {
+                // Ngọc quy đổi kg -> viên: phần còn lại sau hao hụt không chuyển
+                // tiếp dưới dạng kg mà quy đổi hết thành viên (nhập ở ô "Viên ra").
+                $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = 0;
+            } else {
+                $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = max(0, round($stockKg - $val, 2));
+            }
 
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
             echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
@@ -1802,19 +1867,21 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 6. Cập nhật viên hao hụt (Kho KX)
-    $app->router('/stage-transfer-update/{code}/loss_vien/{key}', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/loss_vien/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $key = $app->xss($vars['key'] ?? '');
         $val = intval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code]['items'][$key])) {
-            $stockVien = intval($transfer_session[$code]['items'][$key]['stock_vien'] ?? 0);
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockVien = intval($transfer_session[$sessionKey]['items'][$key]['stock_vien'] ?? 0);
             if ($val < 0) $val = 0;
             if ($stockVien > 0 && $val > $stockVien) $val = $stockVien;
-            $transfer_session[$code]['items'][$key]['amount_hao_hut'] = $val;
-            $transfer_session[$code]['items'][$key]['amount'] = max(0, $stockVien - $val);
+            $transfer_session[$sessionKey]['items'][$key]['amount_hao_hut'] = $val;
+            $transfer_session[$sessionKey]['items'][$key]['amount'] = max(0, $stockVien - $val);
 
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
             echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
@@ -1824,40 +1891,44 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 7. Cập nhật ghi chú
-    $app->router('/stage-transfer-update/{code}/notes', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/notes', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $val = trim($app->xss($_POST['value'] ?? ''));
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (!isset($transfer_session[$code])) {
-            $transfer_session[$code] = ['items' => [], 'notes' => ''];
+        if (!isset($transfer_session[$sessionKey])) {
+            $transfer_session[$sessionKey] = ['items' => [], 'notes' => ''];
         }
-        $transfer_session[$code]['notes'] = $val;
+        $transfer_session[$sessionKey]['notes'] = $val;
         $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
         echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
     });
 
     // 8. Chọn tất cả ngọc tồn
-    $app->router('/stage-transfer-update/{code}/select-all', 'POST', function ($vars) use ($app, $jatbi, $getStageByCode, $getStageStockAgg) {
+    $app->router('/stage-transfer-update/{code}/{to}/select-all', 'POST', function ($vars) use ($app, $jatbi, $getStageByCode, $getStageStockAgg, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
         $fromStage = $getStageByCode($code);
-        if (!$fromStage) {
+        if (!$fromStage || !$toCode) {
             echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Kho không hợp lệ')]);
             return;
         }
+        $sessionKey = $code . '_' . $toCode;
 
         $stockItems = $getStageStockAgg($fromStage['id']);
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (!isset($transfer_session[$code])) {
-            $transfer_session[$code] = ['items' => [], 'notes' => ''];
+        if (!isset($transfer_session[$sessionKey])) {
+            $transfer_session[$sessionKey] = ['items' => [], 'notes' => ''];
         }
 
         foreach ($stockItems as $it) {
             $rowKey = $it['batch'] . '_' . $it['pearl'];
-            if (!isset($transfer_session[$code]['items'][$rowKey])) {
-                $transfer_session[$code]['items'][$rowKey] = [
+            if (!isset($transfer_session[$sessionKey]['items'][$rowKey])) {
+                $transfer_session[$sessionKey]['items'][$rowKey] = [
                     'batch' => $it['batch'],
                     'pearl' => $it['pearl'],
                     'batch_code' => $it['batch_code'],
@@ -1865,7 +1936,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     'unit_mode' => $it['unit_mode'],
                     'stock_kg' => floatval($it['weight_kg']),
                     'stock_vien' => floatval($it['amount']),
-                    'weight_kg' => floatval($it['weight_kg']),
+                    // Xem giải thích ở route "add": ngọc kg_to_vien tại KX -> LT
+                    // không chuyển kg, quy đổi hết thành viên.
+                    'weight_kg' => ($code === 'KX' && $toCode === 'LT' && (($it['unit_mode'] ?? 'kg') !== 'kg_and_vien'))
+                        ? 0 : floatval($it['weight_kg']),
                     'amount' => floatval($it['amount']),
                     'weight_kg_hao_hut' => 0,
                     'amount_hao_hut' => 0,
@@ -1878,32 +1952,35 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
     });
 
     // 9. Hủy danh sách
-    $app->router('/stage-transfer-update/{code}/cancel', 'POST', function ($vars) use ($app, $jatbi) {
+    $app->router('/stage-transfer-update/{code}/{to}/cancel', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        if (isset($transfer_session[$code])) {
-            unset($transfer_session[$code]);
+        if (isset($transfer_session[$sessionKey])) {
+            unset($transfer_session[$sessionKey]);
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
         }
         echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Đã hủy danh sách')]);
     });
 
     // 10. Hoàn tất chuyển kho
-    $app->router('/stage-transfer-update/{code}/completed', 'POST', function ($vars) use ($app, $jatbi, $setting, $getStageByCode) {
+    $app->router('/stage-transfer-update/{code}/{to}/completed', 'POST', function ($vars) use ($app, $jatbi, $setting, $getStageByCode, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
         $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toStageCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
         $fromStage = $getStageByCode($code);
-        $toStageCode = ($code === 'VS') ? 'KX' : 'LT';
-        $toStage = $getStageByCode($toStageCode);
+        $toStage = $toStageCode ? $getStageByCode($toStageCode) : null;
 
         if (!$fromStage || !$toStage) {
             echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Chưa cấu hình kho')]);
             return;
         }
+        $sessionKey = $code . '_' . $toStageCode;
 
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
-        $data = $transfer_session[$code] ?? [];
+        $data = $transfer_session[$sessionKey] ?? [];
         $items = $data['items'] ?? [];
 
         if (empty($items)) {
@@ -1930,7 +2007,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
         $ok = false;
         try {
-            $app->action(function () use ($app, $byBatch, $fromId, $toId, $userId, $now, $fromStage, $toStage, $notes, &$ok) {
+            $app->action(function () use ($app, $byBatch, $fromId, $toId, $userId, $now, $fromStage, $toStage, $notes, $code, $toStageCode, &$ok) {
                 foreach ($byBatch as $bId => $lines) {
                     // Phiếu xuất khỏi kho nguồn (Chờ kho đích bấm 'Nhập hàng' để nhận)
                     $app->insert("production_stage_movements", [
@@ -1942,9 +2019,16 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     if (!$exportMovementId) return false;
 
                     foreach ($lines as $cl) {
+                        // Chốt an toàn: ngọc "kg_to_vien" ở bước KX -> LT không được
+                        // mang kg sang kho đích, toàn bộ (trừ hao hụt) phải quy đổi
+                        // thành viên. Ép về 0 tại đây bất kể dữ liệu cookie thế nào.
+                        $rowUnitMode = $cl['unit_mode'] ?? 'kg';
+                        $isConvertRow = ($code === 'KX' && $toStageCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
+                        $weightKgToSave = $isConvertRow ? 0 : ($cl['weight_kg'] ?? 0);
+
                         $app->insert("production_stage_movement_items", [
                             "movement" => $exportMovementId, "pearl" => $cl['pearl'],
-                            "weight_kg" => $cl['weight_kg'], "amount" => $cl['amount'],
+                            "weight_kg" => $weightKgToSave, "amount" => $cl['amount'],
                             "weight_kg_hao_hut" => $cl['weight_kg_hao_hut'] ?? 0, "amount_hao_hut" => $cl['amount_hao_hut'] ?? 0,
                             "deleted" => 0,
                         ]);
@@ -1976,7 +2060,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
 
         if ($ok) {
-            unset($transfer_session[$code]);
+            unset($transfer_session[$sessionKey]);
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
 
             $jatbi->logs('production_stage_movements', 'transfer_batch_multi', ['from' => $fromId, 'to' => $toId, 'by_batch' => $byBatch]);
@@ -2114,7 +2198,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     $vien = floatval($mi['amount']);
                     $sub = [];
                     if ($kg > 0) $sub[] = number_format($kg, 2) . ' kg';
-                    if ($isMax && $vien > 0) $sub[] = number_format($vien) . ' v';
+                    if ($vien > 0) $sub[] = number_format($vien) . ' v';
                     $summaryParts[] = $mi['pearl_name'] . ' (' . implode(' · ', $sub) . ')';
                 }
 
@@ -2404,7 +2488,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     $pText = $mi['pearl_name'] . ' (';
                     $sub = [];
                     if (floatval($mi['weight_kg']) > 0) $sub[] = number_format($mi['weight_kg'], 2) . ' kg';
-                    if ($isMax && floatval($mi['amount']) > 0) $sub[] = number_format($mi['amount']) . ' v';
+                    if (floatval($mi['amount']) > 0) $sub[] = number_format($mi['amount']) . ' v';
                     $pText .= implode(' · ', $sub) . ')';
                     $summaryParts[] = $pText;
 
@@ -2736,122 +2820,6 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         echo json_encode(['status' => 'success', 'data' => $results]);
     });
 
-    // ============================================================
-    // API TÌM KIẾM MÃ LÔ / LOẠI NGỌC TỒN THEO KHO (/api/stage-stock-search/{code})
-    // Phục vụ chuẩn data-search="true"
-    // ============================================================
-    $app->router('/api/stage-stock-search/{code}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $getStageByCode) {
-        $app->header(['Content-Type' => 'application/json']);
-        $code = strtoupper($app->xss($vars['code'] ?? ''));
-        $fromStage = $getStageByCode($code);
-        if (!$fromStage) {
-            echo json_encode([]);
-            return;
-        }
-
-        $searchValue = trim(isset($_POST['search']) ? $app->xss($_POST['search']) : (isset($_GET['search']) ? $app->xss($_GET['search']) : ''));
-
-        // Tính tồn kho hiện tại ở stage này
-        $agg = [];
-        $app->select("production_stage_movement_items", [
-            "[><]production_stage_movements" => ["movement" => "id"],
-        ], [
-            "production_stage_movements.batch",
-            "production_stage_movements.type",
-            "production_stage_movement_items.pearl",
-            "production_stage_movement_items.weight_kg",
-            "production_stage_movement_items.amount",
-            "production_stage_movement_items.weight_kg_hao_hut",
-            "production_stage_movement_items.amount_hao_hut",
-        ], [
-            "production_stage_movements.stage" => $fromStage['id'],
-            "production_stage_movements.deleted" => 0,
-            "production_stage_movement_items.deleted" => 0,
-        ], function ($r) use (&$agg) {
-            $key = $r['batch'] . '_' . $r['pearl'];
-            if (!isset($agg[$key])) {
-                $agg[$key] = [
-                    'batch' => $r['batch'],
-                    'pearl' => $r['pearl'],
-                    'weight_kg' => 0,
-                    'amount' => 0,
-                ];
-            }
-            if ($r['type'] === 'import') {
-                $agg[$key]['weight_kg'] += floatval($r['weight_kg']);
-                $agg[$key]['amount'] += floatval($r['amount']);
-            } else {
-                $agg[$key]['weight_kg'] -= (floatval($r['weight_kg']) + floatval($r['weight_kg_hao_hut'] ?? 0));
-                $agg[$key]['amount'] -= (floatval($r['amount']) + floatval($r['amount_hao_hut'] ?? 0));
-            }
-        });
-
-        $stockItems = [];
-        $batchIds = [];
-        $pearlIds = [];
-        foreach ($agg as $a) {
-            if ($a['weight_kg'] > 0.0001 || $a['amount'] > 0.0001) {
-                $stockItems[] = $a;
-                $batchIds[] = $a['batch'];
-                $pearlIds[] = $a['pearl'];
-            }
-        }
-
-        $batchMap = [];
-        $pearlMap = [];
-        if (!empty($batchIds)) {
-            $app->select('production_batches', ['id', 'code'], ['id' => array_unique($batchIds)], function ($b) use (&$batchMap) {
-                $batchMap[$b['id']] = $b['code'];
-            });
-        }
-        if (!empty($pearlIds)) {
-            $app->select('pearl', ['id', 'name', 'unit_mode'], ['id' => array_unique($pearlIds)], function ($p) use (&$pearlMap) {
-                $pearlMap[$p['id']] = $p;
-            });
-        }
-
-        $datas = [];
-        foreach ($stockItems as $it) {
-            $batchCode = $batchMap[$it['batch']] ?? '-';
-            $p = $pearlMap[$it['pearl']] ?? null;
-            $pearlName = $p['name'] ?? $jatbi->lang('Không xác định');
-            $unitMode = $p['unit_mode'] ?? 'kg';
-
-            if ($searchValue !== '' && stripos($batchCode . ' ' . $pearlName, $searchValue) === false) {
-                continue;
-            }
-
-            $isMaxima = ($unitMode === 'kg_and_vien');
-            $infoParts = [];
-            if ($it['weight_kg'] > 0) {
-                $infoParts[] = number_format($it['weight_kg'], 2) . ' kg';
-            }
-            if ($it['amount'] > 0 && ($isMaxima || $it['weight_kg'] <= 0)) {
-                $infoParts[] = number_format($it['amount']) . ' ' . $jatbi->lang('viên');
-            }
-            if (empty($infoParts)) {
-                $infoParts[] = '0 kg';
-            }
-            $infoText = $jatbi->lang('Tồn kho') . ': ' . implode(' · ', $infoParts);
-
-            $datas[] = [
-                'value' => $it['batch'] . '_' . $it['pearl'],
-                'row_id' => $it['batch'] . '_' . $it['pearl'],
-                'text' => '#' . $batchCode . ' - ' . $pearlName,
-                'info' => $infoText,
-                'batch' => $it['batch'],
-                'batch_code' => $batchCode,
-                'pearl' => $it['pearl'],
-                'pearl_name' => $pearlName,
-                'weight_kg' => floatval($it['weight_kg']),
-                'amount' => floatval($it['amount']),
-                'unit_mode' => $unitMode,
-                'url' => '/qaqc/stage-transfer-update/' . $code . '/add/' . $it['batch'] . '/' . $it['pearl'],
-            ];
-        }
-
-        echo json_encode($datas);
-    });
 
     // ============================================================
     // 3. GIAI ĐOẠN 4 — KHO CHẾ TÁC (CT / SX) - KHO CHUNG
@@ -3788,5 +3756,119 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
         }
     })->setPermissions(['finish_stock.export']);
+    
+    $app->router('/api/stage-stock-search/{code}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $getStageByCode, $resolveTransferTo) {
+        $app->header(['Content-Type' => 'application/json']);
+        $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $fromStage = $getStageByCode($code);
+        if (!$fromStage) {
+            echo json_encode([]);
+            return;
+        }
+        $toCode = $resolveTransferTo($code, $app->xss($_POST['to'] ?? $_GET['to'] ?? ''));
+
+        $searchValue = trim(isset($_POST['search']) ? $app->xss($_POST['search']) : (isset($_GET['search']) ? $app->xss($_GET['search']) : ''));
+
+        // Tính tồn kho hiện tại ở stage này
+        $agg = [];
+        $app->select("production_stage_movement_items", [
+            "[><]production_stage_movements" => ["movement" => "id"],
+        ], [
+            "production_stage_movements.batch",
+            "production_stage_movements.type",
+            "production_stage_movement_items.pearl",
+            "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.amount",
+            "production_stage_movement_items.weight_kg_hao_hut",
+            "production_stage_movement_items.amount_hao_hut",
+        ], [
+            "production_stage_movements.stage" => $fromStage['id'],
+            "production_stage_movements.deleted" => 0,
+            "production_stage_movement_items.deleted" => 0,
+        ], function ($r) use (&$agg) {
+            $key = $r['batch'] . '_' . $r['pearl'];
+            if (!isset($agg[$key])) {
+                $agg[$key] = [
+                    'batch' => $r['batch'],
+                    'pearl' => $r['pearl'],
+                    'weight_kg' => 0,
+                    'amount' => 0,
+                ];
+            }
+            if ($r['type'] === 'import') {
+                $agg[$key]['weight_kg'] += floatval($r['weight_kg']);
+                $agg[$key]['amount'] += floatval($r['amount']);
+            } else {
+                $agg[$key]['weight_kg'] -= (floatval($r['weight_kg']) + floatval($r['weight_kg_hao_hut'] ?? 0));
+                $agg[$key]['amount'] -= (floatval($r['amount']) + floatval($r['amount_hao_hut'] ?? 0));
+            }
+        });
+
+        $stockItems = [];
+        $batchIds = [];
+        $pearlIds = [];
+        foreach ($agg as $a) {
+            if ($a['weight_kg'] > 0.0001 || $a['amount'] > 0.0001) {
+                $stockItems[] = $a;
+                $batchIds[] = $a['batch'];
+                $pearlIds[] = $a['pearl'];
+            }
+        }
+
+        $batchMap = [];
+        $pearlMap = [];
+        if (!empty($batchIds)) {
+            $app->select('production_batches', ['id', 'code'], ['id' => array_unique($batchIds)], function ($b) use (&$batchMap) {
+                $batchMap[$b['id']] = $b['code'];
+            });
+        }
+        if (!empty($pearlIds)) {
+            $app->select('pearl', ['id', 'name', 'unit_mode'], ['id' => array_unique($pearlIds)], function ($p) use (&$pearlMap) {
+                $pearlMap[$p['id']] = $p;
+            });
+        }
+
+        $datas = [];
+        foreach ($stockItems as $it) {
+            $batchCode = $batchMap[$it['batch']] ?? '-';
+            $p = $pearlMap[$it['pearl']] ?? null;
+            $pearlName = $p['name'] ?? $jatbi->lang('Không xác định');
+            $unitMode = $p['unit_mode'] ?? 'kg';
+
+            if ($searchValue !== '' && stripos($batchCode . ' ' . $pearlName, $searchValue) === false) {
+                continue;
+            }
+
+            $infoParts = [];
+            if ($it['weight_kg'] > 0) {
+                $infoParts[] = number_format($it['weight_kg'], 2) . ' kg';
+            }
+            if ($it['amount'] > 0) {
+                $infoParts[] = number_format($it['amount']) . ' ' . $jatbi->lang('viên');
+            }
+            if (empty($infoParts)) {
+                $infoParts[] = '0 kg';
+            }
+            $infoText = $jatbi->lang('Tồn kho') . ': ' . implode(' · ', $infoParts);
+
+            $datas[] = [
+                'value' => $it['batch'] . '_' . $it['pearl'],
+                'row_id' => $it['batch'] . '_' . $it['pearl'],
+                'text' => '#' . $batchCode . ' - ' . $pearlName,
+                'info' => $infoText,
+                'batch' => $it['batch'],
+                'batch_code' => $batchCode,
+                'pearl' => $it['pearl'],
+                'pearl_name' => $pearlName,
+                'weight_kg' => floatval($it['weight_kg']),
+                'amount' => floatval($it['amount']),
+                'unit_mode' => $unitMode,
+                'url' => '/qaqc/stage-transfer-update/' . $code . '/' . $toCode . '/add/' . $it['batch'] . '/' . $it['pearl'],
+            ];
+        }
+
+        echo json_encode($datas);
+    });
+
 
 })->middleware('login');

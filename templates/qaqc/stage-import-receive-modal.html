@@ -34,6 +34,12 @@
                     </div>
 
                     <h6 class="fw-bold mb-2 small text-uppercase text-secondary"><?=$jatbi->lang("Danh sách ngọc chuyển đến")?></h6>
+                    <?php
+                    $hasConvert = false;
+                    foreach ($items as $it) {
+                        if (intval($it['amount_convert'] ?? 0) > 0) { $hasConvert = true; break; }
+                    }
+                    ?>
                     <div class="table-responsive mb-3">
                         <table class="table table-bordered align-middle mb-0">
                             <thead class="table-light text-center small">
@@ -52,20 +58,27 @@
                                 $total_vien = 0;
                                 foreach ($items as $it): 
                                     $stt++;
+                                    $convertVien = intval($it['amount_convert'] ?? 0);
+                                    $isConvert = $convertVien > 0;
                                     $isMaxima = (($it['unit_mode'] ?? '') === 'kg_and_vien');
-                                    $kg = floatval($it['weight_kg'] ?? 0);
-                                    $vien = floatval($it['amount'] ?? 0);
+                                    $kg = $isConvert ? 0 : floatval($it['weight_kg'] ?? 0);
+                                    $vien = $isConvert ? $convertVien : floatval($it['amount'] ?? 0);
                                     $total_kg += $kg;
                                     $total_vien += $vien;
                                 ?>
                                 <tr>
                                     <td class="text-center small"><?=$stt?></td>
-                                    <td class="fw-semibold text-body"><?=htmlspecialchars($it['pearl_name'] ?? 'N/A')?></td>
-                                    <td class="text-center small">
-                                        <?=$isMaxima ? '<span class="badge bg-info">Kg + Viên</span>' : '<span class="badge bg-warning text-dark">Kg</span>'?>
+                                    <td class="fw-semibold text-body">
+                                        <?=htmlspecialchars($it['pearl_name'] ?? 'N/A')?>
+                                        <?php if ($isConvert) { ?>
+                                        <span class="badge bg-info text-dark ms-1"><?=$jatbi->lang("Quy đổi kg→viên")?></span>
+                                        <?php } ?>
                                     </td>
-                                    <td class="text-end fw-bold text-body"><?=$kg > 0 ? number_format($kg, 2) . ' kg' : '-'?></td>
-                                    <td class="text-end fw-bold text-body"><?=($isMaxima && $vien > 0) ? number_format($vien) . ' viên' : '-'?></td>
+                                    <td class="text-center small">
+                                        <?=$isConvert ? '<span class="badge bg-primary">Viên</span>' : ($isMaxima ? '<span class="badge bg-info">Kg + Viên</span>' : '<span class="badge bg-warning text-dark">Kg</span>')?>
+                                    </td>
+                                    <td class="text-end fw-bold text-body"><?=($isConvert || $kg <= 0) ? '-' : number_format($kg, 2) . ' kg'?></td>
+                                    <td class="text-end fw-bold text-body"><?=($isConvert || ($isMaxima && $vien > 0)) ? number_format($vien) . ' viên' : '-'?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -78,6 +91,12 @@
                             </tfoot>
                         </table>
                     </div>
+
+                    <?php if ($hasConvert) { ?>
+                    <div class="alert alert-primary bg-primary bg-opacity-10 border-primary border-opacity-25 text-primary small rounded-4 py-2 px-3 mb-3">
+                        <i class="ti ti-info-circle me-1"></i><?=$jatbi->lang("Phiếu này là quy đổi Kg → Viên (khoan xiên): kho LT chỉ nhận dạng viên, không nhận Kg.")?>
+                    </div>
+                    <?php } ?>
 
                     <div class="d-flex justify-content-between align-items-center gap-2 mt-4">
                         <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">

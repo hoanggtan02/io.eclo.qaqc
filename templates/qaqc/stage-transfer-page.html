@@ -36,6 +36,27 @@
                         <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Ngày chuyển")?></label>
                         <input type="text" class="form-control rounded-4 py-2 bg-light text-secondary" value="<?=date('d/m/Y H:i')?>" readonly disabled>
                     </div>
+                    <?php if (!empty($direction_options) && count($direction_options) > 1) { ?>
+                    <div class="mt-1">
+                        <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Hướng chuyển")?></label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <?php foreach ($direction_options as $opt) { ?>
+                            <a href="<?=$jatbi->url('/qaqc/stage-transfer/' . $from_stage['code'] . '?to=' . $opt['code'])?>"
+                               class="btn btn-sm rounded-pill px-3 fw-semibold pjax-load <?=$opt['active'] ? ($opt['is_return'] ? 'btn-danger' : 'btn-eclo') : 'btn-eclo-light'?>">
+                                <?php if ($opt['is_return']) { ?><i class="ti ti-corner-up-left me-1"></i><?php } ?>
+                                <?=htmlspecialchars($opt['name'])?>
+                            </a>
+                            <?php } ?>
+                        </div>
+                        <?php
+                        $activeOpt = null;
+                        foreach ($direction_options as $opt) { if ($opt['active'] && $opt['is_return']) { $activeOpt = $opt; break; } }
+                        ?>
+                        <?php if ($activeOpt) { ?>
+                        <div class="small text-danger mt-1"><i class="ti ti-alert-triangle me-1"></i><?=$jatbi->lang("Đang trả ngược ngọc về")?> <?=htmlspecialchars($activeOpt['name'])?> (<?=$jatbi->lang("vd ngọc chưa sạch/lỗi")?>).</div>
+                        <?php } ?>
+                    </div>
+                    <?php } ?>
                 </div>
             </div>
 
@@ -45,6 +66,9 @@
                 <ul class="small text-secondary ps-3 mb-0">
                     <li class="mb-1"><?=$jatbi->lang("Gõ mã lô (#LO-...) vào ô tìm kiếm để chọn ngọc cần chuyển.")?></li>
                     <li class="mb-1"><?=$jatbi->lang("Điều chỉnh số Kg hoặc số Viên chuyển đi theo thực tế.")?></li>
+                    <?php if ($is_convert) { ?>
+                    <li class="mb-1 text-primary"><?=$jatbi->lang("Quy đổi KX → LT: nhập Kg đưa khoan, Kg hao hụt và số Viên nhận được sau khi khoan xiên. Kho LT chỉ lưu dạng viên.")?></li>
+                    <?php } ?>
                     <?php if ($allow_loss) { ?>
                     <li class="text-danger"><?=$jatbi->lang("Kho Khoan Xuyên: Có thể nhập số Kg/Viên hao hụt do khoan.")?></li>
                     <?php } ?>
@@ -60,7 +84,7 @@
                     <!-- Thanh tìm kiếm theo mã lô bằng API chuẩn của hệ thống (data-search="true") -->
                     <div class="bg-body rounded-pill p-2 d-flex justify-content-center align-items-center mb-3" data-pos-table>
                         <i class="ti ti-search fs-3 ms-2 text-secondary"></i>
-                        <div class="w-100 position-relative" data-search="true" data-url="/api/stage-stock-search/<?=$from_stage['code']?>" data-minlength="1">
+                        <div class="w-100 position-relative" data-search="true" data-url="/qaqc/api/stage-stock-search/<?=$from_stage['code']?>?to=<?=$to_stage['code']?>" data-minlength="1">
                             <input type="text"
                                 class="form-control bg-transparent border-0 shadow-none py-2 px-3 w-100"
                                 placeholder="<?=$jatbi->lang("Tìm kiếm theo mã lô (#LO-...) hoặc loại ngọc...")?>"
@@ -86,7 +110,7 @@
                         </div>
                         <button type="button" class="btn btn-sm btn-light rounded-pill px-3 py-2 text-nowrap me-1 fw-semibold text-secondary"
                             data-action="click" data-selector="[data-pos-table]" data-load="this"
-                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/select-all">
+                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/select-all">
                             <i class="ti ti-plus me-1"></i><?=$jatbi->lang("Chọn tất cả")?>
                         </button>
                     </div>
@@ -101,11 +125,17 @@
                                     <th class="text-nowrap"><?=$jatbi->lang("Loại ngọc")?></th>
                                     <th class="text-end text-nowrap"><?=$jatbi->lang("Kg tồn")?></th>
                                     <th class="text-end text-nowrap"><?=$jatbi->lang("Viên tồn")?></th>
-                                    <th style="width: 130px;" class="text-end text-nowrap"><?=$jatbi->lang("Kg chuyển")?> <span class="text-danger">*</span></th>
+                                    <th style="width: 130px;" class="text-end text-nowrap"><?=$is_convert ? $jatbi->lang("Kg đưa khoan") : $jatbi->lang("Kg chuyển")?> <span class="text-danger">*</span></th>
+                                    <?php if ($is_convert) { ?>
+                                    <th style="width: 160px;" class="text-end text-nowrap"><?=$jatbi->lang("Viên nhận sau khoan")?> <span class="text-danger">*</span></th>
+                                    <?php } else { ?>
                                     <th style="width: 120px;" class="text-end text-nowrap"><?=$jatbi->lang("Viên chuyển")?></th>
+                                    <?php } ?>
                                     <?php if ($allow_loss) { ?>
                                     <th style="width: 130px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Kg hao hụt")?></th>
+                                    <?php if (!$is_convert) { ?>
                                     <th style="width: 120px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Viên hao hụt")?></th>
+                                    <?php } ?>
                                     <?php } ?>
                                     <th style="width: 40px;" class="text-center"></th>
                                 </tr>
@@ -117,6 +147,7 @@
                                 $sum_stock_vien = 0;
                                 $sum_trans_kg = 0;
                                 $sum_trans_vien = 0;
+                                $sum_convert = 0;
                                 $sum_loss_kg = 0;
                                 $sum_loss_vien = 0;
                                 $has_items = !empty($SelectProducts);
@@ -129,6 +160,7 @@
                                         $stockVien = floatval($item['stock_vien'] ?? 0);
                                         $transKg = floatval($item['weight_kg'] ?? 0);
                                         $transVien = floatval($item['amount'] ?? 0);
+                                        $convertVien = intval($item['amount_convert'] ?? 0);
                                         $lossKg = floatval($item['weight_kg_hao_hut'] ?? 0);
                                         $lossVien = floatval($item['amount_hao_hut'] ?? 0);
 
@@ -136,6 +168,7 @@
                                         $sum_stock_vien += $stockVien;
                                         $sum_trans_kg += $transKg;
                                         $sum_trans_vien += $transVien;
+                                        $sum_convert += $convertVien;
                                         $sum_loss_kg += $lossKg;
                                         $sum_loss_vien += $lossVien;
                                 ?>
@@ -165,18 +198,28 @@
                                             data-load="this"
                                             data-selector="[data-pos-table]"
                                             data-action="change"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/weight_kg/<?=$key?>"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/weight_kg/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
                                     </td>
                                     <td class="text-end">
-                                        <?php if ($isMaxima) { ?>
+                                        <?php if ($is_convert) { ?>
+                                        <input type="number" step="1" min="0"
+                                            class="form-control form-control-sm rounded-3 text-end fw-bold text-primary"
+                                            value="<?=$convertVien > 0 ? $convertVien : ''?>"
+                                            placeholder="0"
+                                            data-load="this"
+                                            data-selector="[data-pos-table]"
+                                            data-action="change"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/amount_convert/<?=$key?>"
+                                            data-form='{"value":"this.val"}'>
+                                        <?php } elseif ($isMaxima) { ?>
                                         <input type="number" step="1" min="0" max="<?=$stockVien?>"
                                             class="form-control form-control-sm rounded-3 text-end fw-bold"
                                             value="<?=$transVien > 0 ? $transVien : ''?>"
                                             data-load="this"
                                             data-selector="[data-pos-table]"
                                             data-action="change"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/amount/<?=$key?>"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/amount/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
                                         <?php } else { ?>
                                         <span class="text-secondary small">-</span>
@@ -191,9 +234,10 @@
                                             data-load="this"
                                             data-selector="[data-pos-table]"
                                             data-action="change"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/loss_kg/<?=$key?>"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_kg/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
                                     </td>
+                                    <?php if (!$is_convert) { ?>
                                     <td class="text-end">
                                         <?php if ($isMaxima) { ?>
                                         <input type="number" step="1" min="0" max="<?=$stockVien?>"
@@ -203,19 +247,20 @@
                                             data-load="this"
                                             data-selector="[data-pos-table]"
                                             data-action="change"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/loss_vien/<?=$key?>"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_vien/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
                                         <?php } else { ?>
                                         <span class="text-secondary small">-</span>
                                         <?php } ?>
                                     </td>
                                     <?php } ?>
+                                    <?php } ?>
                                     <td class="text-center">
                                         <a class="btn btn-link text-danger p-0"
                                             data-action="click"
                                             data-selector="[data-pos-table]"
                                             data-load="this"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/deleted/<?=$key?>"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/deleted/<?=$key?>"
                                             title="<?=$jatbi->lang("Xóa khỏi danh sách")?>">
                                             <i class="ti ti-trash fs-5"></i>
                                         </a>
@@ -223,7 +268,7 @@
                                 </tr>
                                 <?php } } else { ?>
                                 <tr>
-                                    <td colspan="<?=$allow_loss ? '10' : '8'?>" class="text-center py-5 text-secondary">
+                                    <td colspan="<?=$is_convert ? '9' : ($allow_loss ? '10' : '8')?>" class="text-center py-5 text-secondary">
                                         <i class="ti ti-search fs-1 d-block text-muted mb-2 opacity-50"></i>
                                         <div class="fw-semibold text-body mb-1"><?=$jatbi->lang("Chưa có dòng ngọc nào được chọn")?></div>
                                         <div class="small text-muted"><?=$jatbi->lang("Gõ mã lô (#LO-...) vào ô tìm kiếm ở trên để chọn ngọc cần chuyển.")?></div>
@@ -237,10 +282,12 @@
                                     <td class="text-end text-body"><?=number_format($sum_stock_kg, 2)?> kg</td>
                                     <td class="text-end text-body"><?=$sum_stock_vien > 0 ? (number_format($sum_stock_vien) . ' viên') : '-'?></td>
                                     <td class="text-end text-primary fs-6"><?=number_format($sum_trans_kg, 2)?> kg</td>
-                                    <td class="text-end text-primary fs-6"><?=$sum_trans_vien > 0 ? (number_format($sum_trans_vien) . ' viên') : '-'?></td>
+                                    <td class="text-end text-primary fs-6"><?=$is_convert ? ($sum_convert > 0 ? (number_format($sum_convert) . ' viên') : '-') : ($sum_trans_vien > 0 ? (number_format($sum_trans_vien) . ' viên') : '-')?></td>
                                     <?php if ($allow_loss) { ?>
                                     <td class="text-end text-danger fs-6"><?=number_format($sum_loss_kg, 2)?> kg</td>
+                                    <?php if (!$is_convert) { ?>
                                     <td class="text-end text-danger fs-6"><?=$sum_loss_vien > 0 ? (number_format($sum_loss_vien) . ' viên') : '-'?></td>
+                                    <?php } ?>
                                     <?php } ?>
                                     <td></td>
                                 </tr>
@@ -256,7 +303,7 @@
                         <textarea name="notes" class="form-control rounded-4" rows="3"
                             placeholder="<?=$jatbi->lang("Nội dung ghi chú chuyển kho...")?>"
                             data-action="blur"
-                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/notes"
+                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/notes"
                             data-form='{"value":"this.val"}'><?=htmlspecialchars($data['notes'] ?? '')?></textarea>
                     </div>
                 </div>
@@ -267,14 +314,14 @@
                         data-action="click"
                         data-selector="[data-pos-table]"
                         data-load="this"
-                        data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/cancel">
+                        data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/cancel">
                         <?=$jatbi->lang("Hủy")?>
                     </button>
                     <button type="button" class="btn btn-eclo rounded-pill px-5 ms-2 fw-bold"
                         data-action="click"
                         data-alert="true"
                         data-load="/qaqc/stage-history/<?=$from_stage['code']?>"
-                        data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/completed">
+                        data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/completed">
                         <?=$jatbi->lang("Hoàn tất")?>
                     </button>
                 </div>
