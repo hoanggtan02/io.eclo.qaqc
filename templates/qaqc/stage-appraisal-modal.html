@@ -1,0 +1,79 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-4 bg-primary bg-opacity-10 p-3 me-3 text-primary">
+                        <i class="ti ti-diamond fs-2"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold text-body mb-0">
+                            <?=$jatbi->lang("Chọn Lô để Thẩm định ngọc")?>
+                        </h5>
+                        <div class="small text-secondary">
+                            <?=$jatbi->lang("Chỉ hiển thị các Lô hiện đang có tồn ngọc tại Kho Lưu Trữ (LT)")?>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (empty($batches)) { ?>
+                <div class="alert alert-warning border-0 rounded-4 my-4 text-center">
+                    <i class="ti ti-alert-triangle me-1"></i>
+                    <?=$jatbi->lang("Hiện tại không có lô ngọc nào tồn tại Kho Lưu Trữ để thẩm định.")?>
+                </div>
+                <?php } else { ?>
+                <div class="table-responsive border rounded-4 mb-3">
+                    <table class="table align-middle table-hover mb-0">
+                        <thead class="table-light">
+                            <tr class="small text-secondary">
+                                <th><?=$jatbi->lang("Mã lô")?></th>
+                                <th><?=$jatbi->lang("Chi tiết ngọc")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Kg tồn")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Viên tồn")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Thao tác")?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($batches as $b) { ?>
+                            <tr>
+                                <td>
+                                    <span class="fw-bold text-body">#<?=htmlspecialchars($b['code'])?></span>
+                                </td>
+                                <td>
+                                    <?=$b['pearl_summary']?>
+                                </td>
+                                <td class="text-end fw-bold">
+                                    <?=$b['total_kg'] > 0 ? number_format($b['total_kg'], 2) . ' kg' : '-'?>
+                                </td>
+                                <td class="text-end fw-bold">
+                                    <?=$b['total_vien'] > 0 ? number_format($b['total_vien']) . ' ' . $jatbi->lang('viên') : '-'?>
+                                </td>
+                                <td class="text-end">
+                                    <a href="<?=$jatbi->url('/qaqc/appraisal/' . $b['id'])?>" class="btn btn-primary btn-sm rounded-pill px-3 pjax-load fw-semibold" data-bs-dismiss="modal">
+                                        <i class="ti ti-diamond me-1"></i> <?=$jatbi->lang("Thẩm định")?>
+                                    </a>
+                                </td>
+                            </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+                <?php } ?>
+
+                <div class="text-end">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">
+                        <?=$jatbi->lang("Đóng")?>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -15,7 +15,7 @@
         </div>
     </div>
 
-    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-export-products" data-action="submit" data-alert="true">
+    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-export-products">
         <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4 mb-3">
             <div class="card-header bg-transparent border-0 pt-3 pb-2">
                 <h5 class="fw-bold mb-0 text-body">
@@ -108,7 +108,7 @@
                 <a href="<?=$jatbi->url('/qaqc/finish-stock')?>" class="btn btn-light rounded-pill px-4 pjax-load">
                     <i class="ti ti-x me-1"></i> <?=$jatbi->lang("Hủy bỏ")?>
                 </a>
-                <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6">
+                <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6" data-action="submit" data-alert="true" data-load="this">
                     <i class="ti ti-truck-delivery me-1"></i> <?=$jatbi->lang("Xác nhận xuất điều chuyển xuống Quầy Bán Lẻ")?>
                 </button>
             </div>

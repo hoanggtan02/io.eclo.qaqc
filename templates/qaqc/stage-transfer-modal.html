@@ -1,0 +1,301 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-4 bg-primary bg-opacity-10 p-3 me-3 text-primary">
+                        <i class="ti ti-arrows-left-right fs-2"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold text-body mb-0">
+                            <?=$title?>
+                        </h5>
+                        <div class="small text-secondary">
+                            <?=$jatbi->lang("Kho xuất")?>: <span class="badge bg-secondary"><?=htmlspecialchars($from_stage['name'])?></span>
+                            <i class="ti ti-arrow-right mx-1"></i>
+                            <?=$jatbi->lang("Kho nhập")?>: <span class="badge bg-primary"><?=htmlspecialchars($to_stage['name'])?></span>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if (empty($stock_items)) { ?>
+                <div class="alert alert-warning border-0 rounded-4 my-4 text-center">
+                    <i class="ti ti-alert-triangle me-1"></i>
+                    <?=$jatbi->lang("Hiện tại không có ngọc tồn kho tại")?> <?=htmlspecialchars($from_stage['name'])?> <?=$jatbi->lang("để chuyển")?>.
+                </div>
+                <?php } else { ?>
+
+                <form method="POST" action="<?=$jatbi->url('/qaqc/stage-transfer/' . $from_stage['code'])?>" id="form-stage-transfer">
+                    <input type="hidden" name="from_stage_id" value="<?=$from_stage['id']?>">
+                    <input type="hidden" name="to_stage_id" value="<?=$to_stage['id']?>">
+
+                    <div class="table-responsive border rounded-4 mb-3">
+                        <table class="table align-middle table-hover mb-0" id="table-transfer-items">
+                            <thead class="table-light">
+                                <tr class="small text-secondary">
+                                    <th style="width: 40px;" class="text-center">
+                                        <input class="form-check-input" type="checkbox" id="check-all-transfer">
+                                    </th>
+                                    <th><?=$jatbi->lang("Mã lô")?></th>
+                                    <th><?=$jatbi->lang("Loại ngọc")?></th>
+                                    <th class="text-end text-nowrap"><?=$jatbi->lang("Kg tồn")?></th>
+                                    <th class="text-end text-nowrap"><?=$jatbi->lang("Viên tồn")?></th>
+                                    <th style="min-width: 130px;" class="text-end text-nowrap"><?=$jatbi->lang("Kg chuyển")?> <span class="text-danger">*</span></th>
+                                    <th style="min-width: 120px;" class="text-end text-nowrap"><?=$jatbi->lang("Viên chuyển")?></th>
+                                    <?php if ($allow_loss) { ?>
+                                    <th style="min-width: 130px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Kg hao hụt")?></th>
+                                    <th style="min-width: 120px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Viên hao hụt")?></th>
+                                    <?php } ?>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($stock_items as $idx => $it) { 
+                                    $isMaxima = (($it['unit_mode'] ?? '') === 'kg_and_vien');
+                                    $rowId = $it['batch'] . '_' . $it['pearl'];
+                                ?>
+                                <tr class="transfer-row" data-row-id="<?=$rowId?>" data-kg-ton="<?=$it['weight_kg']?>" data-vien-ton="<?=$it['amount']?>" data-is-maxima="<?=$isMaxima ? '1' : '0'?>" data-allow-loss="<?=$allow_loss ? '1' : '0'?>">
+                                    <td class="text-center">
+                                        <input class="form-check-input transfer-item-check" type="checkbox" name="selected_items[]" value="<?=$rowId?>">
+                                        <input type="hidden" name="items[<?=$rowId?>][batch]" value="<?=$it['batch']?>">
+                                        <input type="hidden" name="items[<?=$rowId?>][pearl]" value="<?=$it['pearl']?>">
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-body">#<?=htmlspecialchars($it['batch_code'])?></span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-body"><?=htmlspecialchars($it['pearl_name'])?></span>
+                                        <?php if ($isMaxima) { ?>
+                                            <span class="badge bg-info ms-1"><?=$jatbi->lang("Kg+viên")?></span>
+                                        <?php } else { ?>
+                                            <span class="badge bg-warning text-dark ms-1"><?=$jatbi->lang("Kg")?></span>
+                                        <?php } ?>
+                                    </td>
+                                    <td class="text-end fw-semibold text-body">
+                                        <?=$it['weight_kg'] > 0 ? number_format($it['weight_kg'], 2) . ' kg' : '-'?>
+                                    </td>
+                                    <td class="text-end fw-semibold text-body">
+                                        <?=($isMaxima && $it['amount'] > 0) ? number_format($it['amount']) . ' ' . $jatbi->lang("viên") : '<span class="text-secondary small">-</span>'?>
+                                    </td>
+                                    <td class="text-end">
+                                        <input type="number" step="0.01" min="0" max="<?=$it['weight_kg']?>"
+                                            class="form-control form-control-sm rounded-3 input-transfer-kg text-end fw-semibold"
+                                            name="items[<?=$rowId?>][weight_kg]" value="<?=$it['weight_kg']?>">
+                                    </td>
+                                    <td class="text-end">
+                                        <?php if ($isMaxima) { ?>
+                                        <input type="number" step="1" min="0" <?=$it['amount'] > 0 ? 'max="'.$it['amount'].'"' : ''?>
+                                            class="form-control form-control-sm rounded-3 input-transfer-vien text-end fw-semibold"
+                                            name="items[<?=$rowId?>][amount]" value="<?=$it['amount'] > 0 ? $it['amount'] : ''?>">
+                                        <?php } else { ?>
+                                        <input type="hidden" name="items[<?=$rowId?>][amount]" value="0">
+                                        <span class="text-secondary small">-</span>
+                                        <?php } ?>
+                                    </td>
+                                    <?php if ($allow_loss) { ?>
+                                    <td class="text-end">
+                                        <input type="number" step="0.01" min="0" max="<?=$it['weight_kg']?>"
+                                            class="form-control form-control-sm rounded-3 input-loss-kg text-end text-danger border-danger border-opacity-50 fw-semibold"
+                                            name="items[<?=$rowId?>][weight_kg_hao_hut]" value="0" placeholder="0.00">
+                                    </td>
+                                    <td class="text-end">
+                                        <?php if ($isMaxima) { ?>
+                                        <input type="number" step="1" min="0" <?=$it['amount'] > 0 ? 'max="'.$it['amount'].'"' : ''?>
+                                            class="form-control form-control-sm rounded-3 input-loss-vien text-end text-danger border-danger border-opacity-50 fw-semibold"
+                                            name="items[<?=$rowId?>][amount_hao_hut]" value="0" placeholder="0">
+                                        <?php } else { ?>
+                                        <input type="hidden" name="items[<?=$rowId?>][amount_hao_hut]" value="0">
+                                        <span class="text-secondary small">-</span>
+                                        <?php } ?>
+                                    </td>
+                                    <?php } else { ?>
+                                        <input type="hidden" name="items[<?=$rowId?>][weight_kg_hao_hut]" value="0">
+                                        <input type="hidden" name="items[<?=$rowId?>][amount_hao_hut]" value="0">
+                                    <?php } ?>
+                                </tr>
+                                <?php } ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="card bg-light border-0 rounded-4 p-3 mb-3">
+                        <div class="row align-items-center small text-secondary g-2">
+                            <div class="col-12 col-md-3">
+                                <?=$jatbi->lang("Đã chọn")?>: <span class="fw-bold text-body" id="summary-selected-count">0</span> / <?=count($stock_items)?> <?=$jatbi->lang("dòng ngọc")?>
+                            </div>
+                            <div class="col-6 col-md-4 text-md-center">
+                                <?=$jatbi->lang("Tổng chuyển")?>: <span class="fw-bold text-primary fs-6" id="summary-total-kg">0.00</span> kg · <span class="fw-bold text-primary fs-6" id="summary-total-vien">0</span> <?=$jatbi->lang("viên")?>
+                            </div>
+                            <?php if ($allow_loss) { ?>
+                            <div class="col-6 col-md-5 text-md-end">
+                                <?=$jatbi->lang("Tổng hao hụt")?>: <span class="fw-bold text-danger fs-6" id="summary-total-loss-kg">0.00</span> kg · <span class="fw-bold text-danger fs-6" id="summary-total-loss-vien">0</span> <?=$jatbi->lang("viên")?>
+                            </div>
+                            <?php } ?>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">
+                            <?=$jatbi->lang("Hủy bỏ")?>
+                        </button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 py-2 fw-bold" id="btn-submit-transfer" data-action="submit" data-alert="true" data-load="this">
+                            <i class="ti ti-check me-1"></i> <?=$jatbi->lang("Xác nhận chuyển kho")?>
+                        </button>
+                    </div>
+                </form>
+                <?php } ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('form-stage-transfer');
+    if (!form) return;
+
+    var checkAll = document.getElementById('check-all-transfer');
+    var rowChecks = form.querySelectorAll('.transfer-item-check');
+
+    function updateSummary() {
+        var count = 0;
+        var totalKg = 0;
+        var totalVien = 0;
+        var totalLossKg = 0;
+        var totalLossVien = 0;
+
+        rowChecks.forEach(function (chk) {
+            if (chk.checked) {
+                count++;
+                var row = chk.closest('.transfer-row');
+                var kgInp = row.querySelector('.input-transfer-kg');
+                var vienInp = row.querySelector('.input-transfer-vien');
+                var lossKgInp = row.querySelector('.input-loss-kg');
+                var lossVienInp = row.querySelector('.input-loss-vien');
+
+                if (kgInp) {
+                    totalKg += parseFloat(kgInp.value) || 0;
+                }
+                if (vienInp) {
+                    totalVien += parseInt(vienInp.value, 10) || 0;
+                }
+                if (lossKgInp) {
+                    totalLossKg += parseFloat(lossKgInp.value) || 0;
+                }
+                if (lossVienInp) {
+                    totalLossVien += parseInt(lossVienInp.value, 10) || 0;
+                }
+            }
+        });
+
+        var countEl = document.getElementById('summary-selected-count');
+        var kgEl = document.getElementById('summary-total-kg');
+        var vienEl = document.getElementById('summary-total-vien');
+        var lossKgEl = document.getElementById('summary-total-loss-kg');
+        var lossVienEl = document.getElementById('summary-total-loss-vien');
+
+        if (countEl) countEl.textContent = count;
+        if (kgEl) kgEl.textContent = totalKg.toFixed(2);
+        if (vienEl) vienEl.textContent = totalVien;
+        if (lossKgEl) lossKgEl.textContent = totalLossKg.toFixed(2);
+        if (lossVienEl) lossVienEl.textContent = totalLossVien;
+    }
+
+    function updateRowState() {
+        rowChecks.forEach(function (chk) {
+            var row = chk.closest('.transfer-row');
+            if (row) {
+                row.style.opacity = chk.checked ? '1' : '0.45';
+            }
+        });
+    }
+
+    if (checkAll) {
+        checkAll.addEventListener('change', function () {
+            var checked = this.checked;
+            rowChecks.forEach(function (chk) {
+                chk.checked = checked;
+            });
+            updateRowState();
+            updateSummary();
+        });
+    }
+
+    rowChecks.forEach(function (chk) {
+        chk.addEventListener('change', function () {
+            if (checkAll) {
+                var allChecked = Array.from(rowChecks).every(function (c) { return c.checked; });
+                var anyChecked = Array.from(rowChecks).some(function (c) { return c.checked; });
+                checkAll.checked = allChecked;
+                checkAll.indeterminate = anyChecked && !allChecked;
+            }
+            updateRowState();
+            updateSummary();
+        });
+    });
+
+    form.addEventListener('input', function (e) {
+        var target = e.target;
+        if (!target || target.type === 'checkbox') return;
+
+        var row = target.closest('.transfer-row');
+        if (!row) return;
+
+        var tonKg = parseFloat(row.getAttribute('data-kg-ton')) || 0;
+        var tonVien = parseInt(row.getAttribute('data-vien-ton'), 10) || 0;
+        var allowLoss = row.getAttribute('data-allow-loss') === '1';
+
+        var kgInp = row.querySelector('.input-transfer-kg');
+        var vienInp = row.querySelector('.input-transfer-vien');
+        var lossKgInp = row.querySelector('.input-loss-kg');
+        var lossVienInp = row.querySelector('.input-loss-vien');
+
+        if (target.classList.contains('input-loss-kg') && allowLoss && kgInp) {
+            var lossKg = parseFloat(target.value);
+            if (isNaN(lossKg)) lossKg = 0;
+            if (lossKg < 0) { lossKg = 0; target.value = 0; }
+            if (lossKg > tonKg) { lossKg = tonKg; target.value = tonKg; }
+            kgInp.value = Math.max(0, tonKg - lossKg).toFixed(2);
+        } else if (target.classList.contains('input-transfer-kg') && allowLoss && lossKgInp) {
+            var transKg = parseFloat(target.value);
+            if (isNaN(transKg)) transKg = 0;
+            var curLossKg = parseFloat(lossKgInp.value) || 0;
+            if (transKg + curLossKg > tonKg + 0.0001) {
+                lossKgInp.value = Math.max(0, tonKg - transKg).toFixed(2);
+            }
+        }
+
+        if (target.classList.contains('input-loss-vien') && allowLoss && vienInp) {
+            var lossVien = parseInt(target.value, 10);
+            if (isNaN(lossVien)) lossVien = 0;
+            if (lossVien < 0) { lossVien = 0; target.value = 0; }
+            if (lossVien > tonVien) { lossVien = tonVien; target.value = tonVien; }
+            vienInp.value = Math.max(0, tonVien - lossVien);
+        } else if (target.classList.contains('input-transfer-vien') && allowLoss && lossVienInp) {
+            var transVien = parseInt(target.value, 10);
+            if (isNaN(transVien)) transVien = 0;
+            var curLossVien = parseInt(lossVienInp.value, 10) || 0;
+            if (transVien + curLossVien > tonVien) {
+                lossVienInp.value = Math.max(0, tonVien - transVien);
+            }
+        }
+
+        updateSummary();
+    });
+
+    // Mặc định tích chọn tất cả dòng để tiện thao tác
+    if (checkAll) {
+        checkAll.checked = true;
+        rowChecks.forEach(function (chk) { chk.checked = true; });
+        updateRowState();
+        updateSummary();
+    }
+})();
+</script>

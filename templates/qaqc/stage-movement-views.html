@@ -1,0 +1,135 @@
+<div class="modal fade modal-load" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content rounded-4 shadow">
+            <div class="modal-body p-4" id="print-area">
+                <div class="row mb-4">
+                    <div class="col-6">
+                        <h6 class="fw-bold text-uppercase p-0 m-0">CÔNG TY TNHH MỘT THÀNH VIÊN NGỌC TRAI NGỌC HIỀN PHÚ QUỐC</h6>
+                        <small class="text-secondary">Bộ phận QAQC - Quản lý quy trình sản xuất & chế tác ngọc</small>
+                    </div>
+                    <div class="col-6 text-end">
+                        <strong class="d-block"><?=($movement['type'] === 'import') ? 'Mẫu số 01 - NK/QAQC' : 'Mẫu số 02 - CK/QAQC'?></strong>
+                        <p class="small text-secondary mb-0"><i>(<?=($movement['type'] === 'import') ? 'Phiếu nhập kho công đoạn' : 'Phiếu chuyển kho nội bộ theo công đoạn'?>)</i></p>
+                    </div>
+                </div>
+
+                <div class="text-center mb-4">
+                    <h4 class="fw-bold my-2 text-uppercase"><?=($movement['type'] === 'import') ? $jatbi->lang("PHIẾU NHẬP KHO QAQC") : $jatbi->lang("PHIẾU CHUYỂN KHO NỘI BỘ QAQC")?></h4>
+                    <p class="mb-0 text-secondary"><i>Ngày <?=date('d', strtotime($movement['date']))?> tháng <?=date('m', strtotime($movement['date']))?> năm <?=date('Y', strtotime($movement['date']))?> (<?=date('H:i', strtotime($movement['date']))?>)</i></p>
+                </div>
+
+                <div class="row mb-3 small">
+                    <div class="col-6">
+                        <p class="mb-1"><strong>Mã phiếu:</strong> <span class="badge bg-light text-body border fw-bold px-2 py-1"><?=($movement['type'] === 'import') ? '#NK-QAQC-' : '#XK-QAQC-'?><?=$movement['id']?></span></p>
+                        <p class="mb-1"><strong>Mã lô:</strong> <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-bold px-2 py-1">#<?=htmlspecialchars($batch['code'] ?? '')?></span></p>
+                        <p class="mb-0"><strong>Ghi chú:</strong> <?=htmlspecialchars($movement['notes'] ?? '-')?></p>
+                    </div>
+                    <div class="col-6">
+                        <?php if ($movement['type'] === 'import') { ?>
+                            <p class="mb-1"><strong>Kho nhận:</strong> <span class="fw-bold text-primary"><?=htmlspecialchars($from_stage['name'] ?? '-')?></span></p>
+                            <?php if (!empty($to_stage['name'])) { ?>
+                            <p class="mb-1"><strong>Kho chuyển:</strong> <span class="fw-semibold text-body"><?=htmlspecialchars($to_stage['name'] ?? '-')?></span></p>
+                            <?php } ?>
+                        <?php } else { ?>
+                            <p class="mb-1"><strong>Kho chuyển:</strong> <span class="fw-semibold text-body"><?=htmlspecialchars($from_stage['name'] ?? '-')?></span></p>
+                            <p class="mb-1"><strong>Kho nhận:</strong> <span class="fw-bold text-primary"><?=htmlspecialchars($to_stage['name'] ?? '-')?></span></p>
+                        <?php } ?>
+                        <p class="mb-0"><strong>Người lập phiếu:</strong> <?=htmlspecialchars($user['name'] ?? '-')?></p>
+                    </div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light text-center">
+                            <tr class="small text-secondary">
+                                <th style="width: 40px;" class="text-center">STT</th>
+                                <th class="text-start"><?=$jatbi->lang("Loại ngọc")?></th>
+                                <th class="text-center"><?=$jatbi->lang("Đơn vị tính")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Số lượng (Kg)")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Số lượng (Viên)")?></th>
+                                <?php if ($has_loss) { ?>
+                                <th class="text-end text-danger"><?=$jatbi->lang("Kg hao hụt")?></th>
+                                <th class="text-end text-danger"><?=$jatbi->lang("Viên hao hụt")?></th>
+                                <?php } ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $stt = 0; 
+                            $total_kg = 0; 
+                            $total_vien = 0;
+                            $total_loss_kg = 0;
+                            $total_loss_vien = 0;
+                            foreach ($items as $item): 
+                                $stt++;
+                                $isMaxima = (($item['unit_mode'] ?? '') === 'kg_and_vien');
+                                $kg = floatval($item['weight_kg'] ?? 0);
+                                $vien = floatval($item['amount'] ?? 0);
+                                $lossKg = floatval($item['weight_kg_hao_hut'] ?? 0);
+                                $lossVien = floatval($item['amount_hao_hut'] ?? 0);
+
+                                $total_kg += $kg;
+                                $total_vien += $vien;
+                                $total_loss_kg += $lossKg;
+                                $total_loss_vien += $lossVien;
+                            ?>
+                                <tr>
+                                    <td class="text-center small"><?=$stt?></td>
+                                    <td class="fw-semibold text-body"><?=htmlspecialchars($item['pearl_name'] ?? 'N/A')?></td>
+                                    <td class="text-center small">
+                                        <?=$isMaxima ? '<span class="badge bg-info">Kg + Viên</span>' : '<span class="badge bg-warning text-dark">Kg</span>'?>
+                                    </td>
+                                    <td class="text-end fw-bold text-body"><?=$kg > 0 ? (number_format($kg, 2) . ' kg') : '-'?></td>
+                                    <td class="text-end fw-bold text-body"><?=($isMaxima && $vien > 0) ? (number_format($vien) . ' viên') : '-'?></td>
+                                    <?php if ($has_loss) { ?>
+                                    <td class="text-end text-danger fw-bold"><?=$lossKg > 0 ? (number_format($lossKg, 2) . ' kg') : '-'?></td>
+                                    <td class="text-end text-danger fw-bold"><?=($isMaxima && $lossVien > 0) ? (number_format($lossVien) . ' viên') : '-'?></td>
+                                    <?php } ?>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold table-light">
+                                <td colspan="3" class="text-end"><?=$jatbi->lang("Tổng cộng")?>:</td>
+                                <td class="text-end text-primary fs-6"><?=number_format($total_kg, 2)?> kg</td>
+                                <td class="text-end text-primary fs-6"><?=$total_vien > 0 ? (number_format($total_vien) . ' viên') : '-'?></td>
+                                <?php if ($has_loss) { ?>
+                                <td class="text-end text-danger fs-6"><?=$total_loss_kg > 0 ? (number_format($total_loss_kg, 2) . ' kg') : '-'?></td>
+                                <td class="text-end text-danger fs-6"><?=$total_loss_vien > 0 ? (number_format($total_loss_vien) . ' viên') : '-'?></td>
+                                <?php } ?>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="row mt-4 pt-3 text-center">
+                    <div class="col-4">
+                        <h6 class="fw-bold mb-1"><?=$jatbi->lang("Người Lập Phiếu")?></h6>
+                        <p class="small text-secondary mb-0"><i>(Ký, họ tên)</i></p>
+                        <div style="height: 70px;"></div>
+                        <p class="fw-bold mb-0"><?=htmlspecialchars($user['name'] ?? '')?></p>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="fw-bold mb-1"><?=$jatbi->lang("Thủ Kho Xuất")?></h6>
+                        <p class="small text-secondary mb-0"><i>(Ký, họ tên)</i></p>
+                        <div style="height: 70px;"></div>
+                        <p class="text-secondary mb-0">..........................</p>
+                    </div>
+                    <div class="col-4">
+                        <h6 class="fw-bold mb-1"><?=$jatbi->lang("Thủ Kho Nhận")?></h6>
+                        <p class="small text-secondary mb-0"><i>(Ký, họ tên)</i></p>
+                        <div style="height: 70px;"></div>
+                        <p class="text-secondary mb-0">..........................</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer d-print-none border-0 bg-transparent py-3">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal"><?=$jatbi->lang("Đóng")?></button>
+                <button type="button" class="btn btn-success rounded-pill px-4" onclick="window.print()">
+                    <i class="ti ti-printer me-1"></i> <?=$jatbi->lang("In phiếu")?>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

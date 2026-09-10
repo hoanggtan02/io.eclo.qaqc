@@ -1,0 +1,55 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold text-body mb-1">
+                    <?=$title?>
+                </h5>
+                <div class="text-secondary small mb-3">
+                    <?=$data['code']?> — <?=$data['stage_name']?> — <?=date('d/m/Y H:i', strtotime($data['date']))?>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th><?=$jatbi->lang("Mã lô")?></th>
+                                <th><?=$jatbi->lang("Loại ngọc")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Kg thực nhận")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Số viên thực nhận")?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($lines as $l){ ?>
+                            <tr>
+                                <td><?=$l['batch_code']?></td>
+                                <td><?=$l['pearl_name']?></td>
+                                <td class="text-end"><?=number_format($l['weight_kg_received'], 2)?> kg</td>
+                                <td class="text-end">
+                                    <?=($l['amount_received'] !== null && $l['amount_received'] !== '')
+                                        ? number_format($l['amount_received']) . ' ' . $jatbi->lang('viên')
+                                        : '-'?>
+                                </td>
+                            </tr>
+                            <?php } ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <?php if(!empty($data['notes'])){ ?>
+                <div class="mt-2 small">
+                    <span class="fw-semibold text-secondary"><?=$jatbi->lang("Ghi chú")?>:</span> <?=$data['notes']?>
+                </div>
+                <?php } ?>
+            </div>
+        </div>
+    </div>
+</div>

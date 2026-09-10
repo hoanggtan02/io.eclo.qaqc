@@ -1,0 +1,249 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold text-body mb-1">
+                    <?=$title?>
+                </h5>
+                <div class="small text-secondary mb-3">
+                    <?=$jatbi->lang("Mã lô")?>: <span class="fw-semibold text-body">#<?=htmlspecialchars($batch['code'])?></span>
+                    · <?=$jatbi->lang("Kho xuất")?>: <span class="badge bg-secondary"><?=htmlspecialchars($from_stage['name'])?></span>
+                </div>
+
+                <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-transfer">
+                    <input type="hidden" name="from" value="<?=htmlspecialchars($from_stage['code'])?>">
+
+                    <?php if (!empty($to_stage_options) && count($to_stage_options) > 1) { ?>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Chọn kho chuyển đến")?> <span class="text-danger">*</span></label>
+                        <select name="to_stage_id" class="form-select rounded-4 fw-semibold" id="select-to-stage">
+                            <?php foreach ($to_stage_options as $opt) { ?>
+                            <option value="<?=$opt['id']?>" <?=$opt['id'] == $to_stage['id'] ? 'selected' : ''?>>
+                                <?=htmlspecialchars($opt['name'])?>
+                            </option>
+                            <?php } ?>
+                        </select>
+                    </div>
+                    <?php } else { ?>
+                        <input type="hidden" name="to_stage_id" value="<?=$to_stage['id']?>">
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Kho chuyển đến")?></label>
+                            <div class="form-control rounded-4 bg-light border-0 fw-semibold text-primary">
+                                <?=htmlspecialchars($to_stage['name'])?>
+                            </div>
+                        </div>
+                    <?php } ?>
+
+                    <?php 
+                    $allowLoss = ($from_stage['code'] === 'KX'); // Chỉ kho Khoan Xiên mới tính hao hụt
+                    foreach ($stock as $s) { 
+                        $isMaxima = (($s['unit_mode'] ?? '') === 'kg_and_vien');
+                    ?>
+                    <div class="border rounded-4 p-3 mb-3 bg-body" data-line data-kg-ton="<?=$s['weight_kg']?>" data-vien-ton="<?=$s['amount']?>" data-is-maxima="<?=$isMaxima ? '1' : '0'?>" data-allow-loss="<?=$allowLoss ? '1' : '0'?>">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                            <div>
+                                <span class="fw-semibold text-body"><?=htmlspecialchars($s['pearl_name'] ?? $jatbi->lang("Không xác định"))?></span>
+                                <?php if ($isMaxima) { ?>
+                                    <span class="badge bg-info ms-1"><?=$jatbi->lang("Kg + Viên (Maxima)")?></span>
+                                <?php } else { ?>
+                                    <span class="badge bg-warning text-dark ms-1"><?=$jatbi->lang("Kg (Akoya)")?></span>
+                                <?php } ?>
+                            </div>
+                            <div class="small text-secondary">
+                                <?=$jatbi->lang("Kg tồn")?>: <?php if ($s['weight_kg'] > 0) { ?><span class="fw-bold text-body me-2"><?=number_format($s['weight_kg'], 2)?> kg</span><?php } else { ?><span class="text-secondary me-2">-</span><?php } ?>
+                                <?php if ($isMaxima) { ?>
+                                <?=$jatbi->lang("Viên tồn")?>: <?php if ($s['amount'] > 0) { ?><span class="fw-bold text-body"><?=number_format($s['amount'])?> <?=$jatbi->lang("viên")?></span><?php } else { ?><span class="text-secondary">-</span><?php } ?>
+                                <?php } ?>
+                            </div>
+                        </div>
+
+                        <?php if (!$allowLoss) { ?>
+                            <!-- KHO VỆ SINH: KHÔNG TÍNH HAO HỤT -->
+                            <div class="row g-2 mb-2">
+                                <div class="<?=$isMaxima ? 'col-6' : 'col-12'?>">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Kg chuyển đi")?> <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" min="0" max="<?=$s['weight_kg']?>"
+                                        class="form-control rounded-4 input-kg-out fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][weight_kg]" value="<?=$s['weight_kg']?>">
+                                    <input type="hidden" class="input-kg-haohut" name="lines[<?=$s['pearl']?>][weight_kg_hao_hut]" value="0">
+                                </div>
+                                <?php if ($isMaxima) { ?>
+                                <div class="col-6">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Số viên chuyển đi")?> <span class="text-danger">*</span></label>
+                                    <input type="number" step="1" min="0" <?=$s['amount'] > 0 ? 'max="'.$s['amount'].'"' : ''?>
+                                        class="form-control rounded-4 input-vien-out fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][amount]" value="<?=$s['amount'] > 0 ? $s['amount'] : ''?>">
+                                    <input type="hidden" class="input-vien-haohut" name="lines[<?=$s['pearl']?>][amount_hao_hut]" value="0">
+                                </div>
+                                <?php } ?>
+                            </div>
+                        <?php } else { ?>
+                            <!-- KHO KHOAN XIÊN: CÓ HAO HỤT DO KHOAN XIÊN -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Kg thực tế chuyển đi")?> <span class="text-danger">*</span></label>
+                                    <input type="number" step="0.01" min="0" max="<?=$s['weight_kg']?>"
+                                        class="form-control rounded-4 input-kg-out fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][weight_kg]" value="<?=$s['weight_kg']?>">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold text-danger"><?=$jatbi->lang("Kg hao hụt (do khoan xiên)")?></label>
+                                    <input type="number" step="0.01" min="0" max="<?=$s['weight_kg']?>"
+                                        class="form-control rounded-4 input-kg-haohut border-danger border-opacity-50 text-danger fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][weight_kg_hao_hut]" value="0" placeholder="0.00">
+                                </div>
+                            </div>
+
+                            <?php if ($isMaxima) { ?>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold"><?=$jatbi->lang("Số viên chuyển đi")?> <span class="text-danger">*</span></label>
+                                    <input type="number" step="1" min="0" <?=$s['amount'] > 0 ? 'max="'.$s['amount'].'"' : ''?>
+                                        class="form-control rounded-4 input-vien-out fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][amount]" value="<?=$s['amount'] > 0 ? $s['amount'] : ''?>">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small text-secondary mb-1 fw-semibold text-danger"><?=$jatbi->lang("Số viên hao hụt (nếu vỡ/hỏng)")?></label>
+                                    <input type="number" step="1" min="0" <?=$s['amount'] > 0 ? 'max="'.$s['amount'].'"' : ''?>
+                                        class="form-control rounded-4 input-vien-haohut border-danger border-opacity-50 text-danger fw-semibold"
+                                        name="lines[<?=$s['pearl']?>][amount_hao_hut]" value="0" placeholder="0">
+                                </div>
+                            </div>
+                            <?php } ?>
+                        <?php } ?>
+
+                        <!-- Thẻ tóm tắt tính toán thời gian thực -->
+                        <div class="p-2 rounded-3 bg-light border small text-secondary live-summary mt-2">
+                            <div class="summary-kg"></div>
+                            <?php if ($isMaxima) { ?>
+                            <div class="summary-vien mt-1"></div>
+                            <?php } ?>
+                        </div>
+                    </div>
+                    <?php } ?>
+
+                    <div class="alert alert-light border-0 rounded-4 small text-secondary mb-0">
+                        <i class="ti ti-info-circle me-1 text-primary"></i>
+                        <?=$allowLoss 
+                            ? $jatbi->lang("Tại Kho Khoan Xiên: Khi bạn nhập số kg hao hụt, hệ thống sẽ tự động tính số kg thực tế chuyển đi sang kho kế tiếp.")
+                            : $jatbi->lang("Có thể chuyển toàn bộ hoặc chuyển một phần số lượng. Số chuyển đi sẽ nhập vào kho đích, phần còn lại vẫn nằm ở kho nguồn.")
+                        ?>
+                    </div>
+
+                    <div class="col-lg-12 mt-3">
+                        <button type="submit" class="btn btn-eclo w-100 py-3 rounded-pill fw-bold"
+                            data-action="submit" data-alert="true" data-load="this">
+                            <?=$jatbi->lang("Xác nhận chuyển kho")?>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('form-transfer');
+    if (!form) return;
+
+    form.querySelectorAll('[data-line]').forEach(function (wrap) {
+        var tonKg = parseFloat(wrap.getAttribute('data-kg-ton')) || 0;
+        var tonVien = parseFloat(wrap.getAttribute('data-vien-ton')) || 0;
+        var isMaxima = wrap.getAttribute('data-is-maxima') === '1';
+        var allowLoss = wrap.getAttribute('data-allow-loss') === '1';
+
+        var inputKgOut = wrap.querySelector('.input-kg-out');
+        var inputKgHaoHut = wrap.querySelector('.input-kg-haohut');
+        var inputVienOut = wrap.querySelector('.input-vien-out');
+        var inputVienHaoHut = wrap.querySelector('.input-vien-haohut');
+
+        var summaryKg = wrap.querySelector('.summary-kg');
+        var summaryVien = wrap.querySelector('.summary-vien');
+
+        function render() {
+            var kgOut = inputKgOut ? (parseFloat(inputKgOut.value) || 0) : 0;
+            var kgHaoHut = (allowLoss && inputKgHaoHut) ? (parseFloat(inputKgHaoHut.value) || 0) : 0;
+            var kgRemain = tonKg - (kgOut + kgHaoHut);
+
+            if (summaryKg) {
+                if (kgRemain < -0.0001) {
+                    summaryKg.innerHTML = '<span class="text-danger fw-bold"><i class="ti ti-alert-triangle me-1"></i><?=$jatbi->lang("Tổng (Chuyển đi + Hao hụt) vượt quá tồn kho!")?> (Vượt ' + Math.abs(kgRemain).toFixed(2) + ' kg)</span>';
+                } else {
+                    var lossText = (allowLoss && kgHaoHut > 0) ? (' - <?=$jatbi->lang("Hao hụt")?>: <span class="text-danger fw-bold">' + kgHaoHut.toFixed(2) + '</span> kg') : '';
+                    var remainText = kgRemain > 0.0001 ? (' · <?=$jatbi->lang("Còn lại tại kho")?>: <span class="text-success fw-bold">' + kgRemain.toFixed(2) + '</span> kg') : '';
+                    summaryKg.innerHTML = '<strong>Kg:</strong> <?=$jatbi->lang("Tồn kho")?>: ' + tonKg.toFixed(2) + ' kg'
+                        + lossText
+                        + ' = <?=$jatbi->lang("Chuyển đi")?>: <span class="text-primary fw-bold">' + kgOut.toFixed(2) + '</span> kg'
+                        + remainText;
+                }
+            }
+
+            if (isMaxima) {
+                var vienOut = inputVienOut ? (parseFloat(inputVienOut.value) || 0) : 0;
+                var vienHaoHut = (allowLoss && inputVienHaoHut) ? (parseFloat(inputVienHaoHut.value) || 0) : 0;
+                var vienRemain = tonVien - (vienOut + vienHaoHut);
+
+                if (summaryVien) {
+                    if (vienRemain < -0.0001) {
+                        summaryVien.innerHTML = '<span class="text-danger fw-bold"><i class="ti ti-alert-triangle me-1"></i><?=$jatbi->lang("Tổng số viên (Chuyển đi + Hao hụt) vượt quá tồn kho!")?> (Vượt ' + Math.abs(vienRemain) + ' viên)</span>';
+                    } else {
+                        var lossVienText = (allowLoss && vienHaoHut > 0) ? (' - <?=$jatbi->lang("Hao hụt")?>: <span class="text-danger fw-bold">' + vienHaoHut + '</span> viên') : '';
+                        var remainVienText = vienRemain > 0 ? (' · <?=$jatbi->lang("Còn lại tại kho")?>: <span class="text-success fw-bold">' + vienRemain + '</span> viên') : '';
+                        summaryVien.innerHTML = '<strong><?=$jatbi->lang("Viên")?>:</strong> <?=$jatbi->lang("Tồn kho")?>: ' + tonVien + ' <?=$jatbi->lang("viên")?>'
+                            + lossVienText
+                            + ' = <?=$jatbi->lang("Chuyển đi")?>: <span class="text-primary fw-bold">' + vienOut + '</span> <?=$jatbi->lang("viên")?>'
+                            + remainVienText;
+                    }
+                }
+            }
+        }
+
+        // Tự động tính khi gõ ô Hao hụt (ở Kho Khoan Xiên):
+        // Khi gõ Kg hao hụt -> tự động trừ Kg chuyển đi = max(0, Tồn - Hao hụt)
+        if (allowLoss && inputKgHaoHut && inputKgOut) {
+            inputKgHaoHut.addEventListener('input', function () {
+                var h = parseFloat(inputKgHaoHut.value);
+                if (isNaN(h)) h = 0;
+                if (h < 0) { h = 0; inputKgHaoHut.value = 0; }
+                if (h > tonKg) { h = tonKg; inputKgHaoHut.value = tonKg; }
+                inputKgOut.value = Math.max(0, tonKg - h).toFixed(2);
+                render();
+            });
+        }
+
+        if (inputKgOut) {
+            inputKgOut.addEventListener('input', function () {
+                render();
+            });
+        }
+
+        if (allowLoss && inputVienHaoHut && inputVienOut) {
+            inputVienHaoHut.addEventListener('input', function () {
+                var hv = parseInt(inputVienHaoHut.value);
+                if (isNaN(hv)) hv = 0;
+                if (hv < 0) { hv = 0; inputVienHaoHut.value = 0; }
+                if (hv > tonVien) { hv = tonVien; inputVienHaoHut.value = tonVien; }
+                inputVienOut.value = Math.max(0, tonVien - hv);
+                render();
+            });
+        }
+
+        if (inputVienOut) {
+            inputVienOut.addEventListener('input', function () {
+                render();
+            });
+        }
+
+        render();
+    });
+})();
+</script>

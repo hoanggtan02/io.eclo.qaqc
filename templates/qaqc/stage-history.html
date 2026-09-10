@@ -1,5 +1,5 @@
 <div class="container-fluid mt-4">
-    <div class="mb-3 d-flex justify-content-between align-items-center">
+    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div>
             <h4 class="mb-0 fw-bold text-body">
                 <?=$title?>
@@ -9,45 +9,119 @@
                     <a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
                 </li>
                 <li class="breadcrumb-item small">
-                    <a href="<?=$jatbi->url('/qaqc/stage/' . $stage_code)?>" class="pjax-load link-secondary"><?=htmlspecialchars($stage_name)?></a>
+                    <a href="<?=$jatbi->url('/qaqc/stage/' . ($stage_code !== 'all' ? $stage_code : 'VS'))?>" class="pjax-load link-secondary"><?=$jatbi->lang("Kho QAQC")?></a>
                 </li>
                 <li class="breadcrumb-item small text-body" aria-current="page">
-                    <?=$jatbi->lang("Lịch sử chuyển")?>
+                    <?=$title?>
                 </li>
             </ul>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <a href="<?=$jatbi->url('/qaqc/stage/' . $stage_code)?>" class="btn btn-eclo-light fw-semibold border-0 rounded-pill small pjax-load">
-                <i class="ti ti-arrow-left me-2"></i> <?=$jatbi->lang("Quay lại")?>
+
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <!-- Nút chuyển kho nhanh -->
+            <?php if (in_array($stage_code, ['VS', 'KX'])) { ?>
+            <a href="<?=$jatbi->url('/qaqc/stage-transfer/' . $stage_code)?>" class="btn btn-primary rounded-pill px-3 py-2 fw-semibold shadow-sm pjax-load">
+                <i class="ti ti-arrows-left-right me-1"></i> <?=$jatbi->lang("Tạo phiếu chuyển kho")?>
             </a>
+            <?php } ?>
+
+            <!-- Bộ lọc -->
+            <div class="dropdown">
+                <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill px-3 py-2 small d-flex align-items-center shadow-sm"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                    <i class="ti ti-filter fs-5 me-1"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                    style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                    <div class="fw-semibold py-2 px-3">
+                        <?=$jatbi->lang("Điều kiện lọc")?>
+                    </div>
+                    <hr class="border-secondary border-opacity-50 my-2">
+                    <div class="px-3">
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tài khoản người chuyển")?></label>
+                            <select name="user" class="form-select rounded-4 filter-name">
+                                <?php foreach($accounts as $acc){ ?>
+                                <option value="<?=$acc['value']?>"><?=$acc['text']?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Khoảng thời gian")?></label>
+                            <input type="text" name="date" class="form-control rounded-4 filter-name"
+                                value="<?=$date_from?> - <?=$date_to?>"
+                                data-datepicker data-width="100%">
+                        </div>
+                    </div>
+                    <hr class="border-secondary border-opacity-50 my-2">
+                    <div class="px-3 py-2 text-end w-100">
+                        <button type="button"
+                            class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                        <button type="button"
+                            class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
         <div class="card-body">
-            <div class="alert alert-info border-0 rounded-4 small mb-3">
-                <i class="ti ti-history me-1"></i>
-                <?=$jatbi->lang("Lịch sử nhập/xuất của")?> <span class="fw-bold"><?=htmlspecialchars($stage_name)?></span> — <?=$jatbi->lang("bấm nút Xem chi tiết để xem chi tiết các dòng ngọc của mỗi phiếu.")?>
+            <!-- Menu chuyển đổi giữa các công đoạn -->
+            <div class="custom-buttons d-none">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-eclo rounded-pill px-3 dropdown-toggle shadow-sm" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="ti ti-history me-1"></i> <?=$jatbi->lang('Công đoạn chuyển kho')?>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end border-0 bg-blur shadow-lg rounded-4" style="--blur:10px;">
+                        <li>
+                            <a class="dropdown-item pjax-load <?=$stage_code === 'VS' ? 'fw-bold text-primary active' : ''?>" href="<?=$jatbi->url('/qaqc/stage-history/VS')?>">
+                                <i class="ti ti-droplet me-2 text-info"></i> <?=$jatbi->lang('1. Kho Vệ Sinh → Kho Khoan Xiên')?>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item pjax-load <?=$stage_code === 'KX' ? 'fw-bold text-primary active' : ''?>" href="<?=$jatbi->url('/qaqc/stage-history/KX')?>">
+                                <i class="ti ti-settings me-2 text-warning"></i> <?=$jatbi->lang('2. Kho Khoan Xiên → Kho Lưu Trữ')?>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item pjax-load <?=$stage_code === 'LT' ? 'fw-bold text-primary active' : ''?>" href="<?=$jatbi->url('/qaqc/stage-history/LT')?>">
+                                <i class="ti ti-archive me-2 text-secondary"></i> <?=$jatbi->lang('3. Kho Lưu Trữ → Kho Chế Tác')?>
+                            </a>
+                        </li>
+                        <hr class="border-secondary border-opacity-50 my-1">
+                        <li>
+                            <a class="dropdown-item pjax-load <?=$stage_code === 'all' ? 'fw-bold text-primary active' : ''?>" href="<?=$jatbi->url('/qaqc/stage-history/all')?>">
+                                <i class="ti ti-list me-2"></i> <?=$jatbi->lang('Tất cả lịch sử chuyển kho QAQC')?>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+
+            <!-- Bảng dữ liệu lịch sử chuyển kho -->
+            <table id="datatable" data-table class="table align-middle table-hover" data-type="POST" data-server="true"
                 data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
                 data-state-save='true' style="width:100%">
                 <thead>
                     <tr>
-                        <th data-name="code" data-searchable="true" data-orderable="true" class="text-nowrap"
-                            data-visible="true" data-class="text-nowrap"><?=$jatbi->lang("Phiếu")?></th>
-                        <th data-name="batch" data-orderable="false" class="text-nowrap" data-visible="true"
+                        <th data-name="code" data-orderable="true" class="text-nowrap" data-visible="true"
+                            data-class="text-nowrap"><?=$jatbi->lang("Mã phiếu")?></th>
+                        <th data-name="batch_code" data-orderable="true" class="text-nowrap" data-visible="true"
                             data-class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
-                        <th data-name="route" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-nowrap"><?=$jatbi->lang("Từ → Đến")?></th>
-                        <th data-name="date" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-nowrap"><?=$jatbi->lang("Ngày")?></th>
-                        <th data-name="item_count" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-center"><?=$jatbi->lang("Số dòng ngọc")?></th>
+                        <th data-name="from_stage" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-nowrap"><?=$jatbi->lang("Kho chuyển")?></th>
+                        <th data-name="to_stage" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-nowrap"><?=$jatbi->lang("Kho nhận")?></th>
+                        <th data-name="pearl_summary" data-orderable="false" class="" data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Ngọc & Số lượng chuyển")?></th>
+                        <th data-name="loss_summary" data-orderable="false" class="text-nowrap" data-visible="true"
+                            data-class="text-danger text-nowrap"><?=$jatbi->lang("Hao hụt")?></th>
+                        <th data-name="date" data-orderable="true" class="text-nowrap" data-visible="true"
+                            data-class="text-nowrap"><?=$jatbi->lang("Ngày chuyển")?></th>
                         <th data-name="user" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-nowrap"><?=$jatbi->lang("Người thao tác")?></th>
-                        <th data-name="action" data-orderable="false" class="text-nowrap" data-visible="true"
-                            data-class="text-end"><?=$jatbi->lang("Thao tác")?></th>
+                            data-class="text-nowrap"><?=$jatbi->lang("Người chuyển")?></th>
+                        <th data-name="action" data-orderable="false" class="text-end" width="3%"></th>
                     </tr>
                 </thead>
             </table>

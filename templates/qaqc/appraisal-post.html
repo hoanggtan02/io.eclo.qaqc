@@ -15,7 +15,7 @@
         </div>
     </div>
 
-    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-appraisal" data-action="submit" data-alert="true">
+    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-appraisal">
         <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4 mb-3">
             <div class="card-header bg-transparent border-0 pt-3 pb-2">
                 <h5 class="fw-bold mb-0 text-body">
@@ -36,9 +36,10 @@
                             <?php } ?>
                         </div>
                         <div class="small text-secondary">
-                            <?=$jatbi->lang("Tồn tại LT")?>:
-                            <?php if ($s['weight_kg'] > 0) { ?><span class="fw-bold text-body fs-6"><?=number_format($s['weight_kg'], 2)?> kg</span><?php } ?>
-                            <?php if ($s['amount'] > 0) { ?> · <span class="fw-bold text-body fs-6"><?=number_format($s['amount'])?> <?=$jatbi->lang("viên")?></span><?php } ?>
+                            <?=$jatbi->lang("Kg tồn")?>: <?php if ($s['weight_kg'] > 0) { ?><span class="fw-bold text-body fs-6 me-2"><?=number_format($s['weight_kg'], 2)?> kg</span><?php } else { ?><span class="text-secondary me-2">-</span><?php } ?>
+                            <?php if ($s['amount'] > 0 || ($s['unit_mode'] ?? '') === 'kg_and_vien') { ?>
+                            <?=$jatbi->lang("Viên tồn")?>: <?php if ($s['amount'] > 0) { ?><span class="fw-bold text-body fs-6"><?=number_format($s['amount'])?> <?=$jatbi->lang("viên")?></span><?php } else { ?><span class="text-secondary">-</span><?php } ?>
+                            <?php } ?>
                         </div>
                     </div>
 
@@ -113,7 +114,7 @@
                 <a href="<?=$jatbi->url('/qaqc/stage/LT')?>" class="btn btn-light rounded-pill px-4 pjax-load">
                     <i class="ti ti-x me-1"></i> <?=$jatbi->lang("Hủy bỏ")?>
                 </a>
-                <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6">
+                <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6" data-action="submit" data-alert="true" data-load="this">
                     <i class="ti ti-check me-1"></i> <?=$jatbi->lang("Lưu thẩm định & Đưa vào Kho Chế Tác")?>
                 </button>
             </div>
@@ -132,8 +133,15 @@
         var first = rowsBox.querySelector('.appraisal-row');
         if (!first) return;
         var clone = first.cloneNode(true);
-        clone.querySelectorAll('input,select').forEach(function (el) {
+        clone.querySelectorAll('input').forEach(function (el) {
             el.value = '';
+        });
+        clone.querySelectorAll('select').forEach(function (el) {
+            if (el.name && el.name.indexOf('group_crafting') !== -1) {
+                el.value = '1';
+            } else {
+                el.value = '';
+            }
         });
         rowsBox.appendChild(clone);
         updateTotals();
@@ -144,8 +152,15 @@
         var pearl = row.closest('.appraisal-pearl');
         var rows = pearl.querySelectorAll('.appraisal-row');
         if (rows.length <= 1) {
-            row.querySelectorAll('input,select').forEach(function (el) {
+            row.querySelectorAll('input').forEach(function (el) {
                 el.value = '';
+            });
+            row.querySelectorAll('select').forEach(function (el) {
+                if (el.name && el.name.indexOf('group_crafting') !== -1) {
+                    el.value = '1';
+                } else {
+                    el.value = '';
+                }
             });
             return;
         }
@@ -165,8 +180,13 @@
             if (totalEl) {
                 totalEl.textContent = total;
                 var rem = ton - total;
-                totalEl.classList.toggle('text-danger', ton > 0 && Math.abs(rem) > 0.0001);
-                totalEl.classList.toggle('text-success', ton > 0 && Math.abs(rem) <= 0.0001);
+                if (ton > 0) {
+                    totalEl.classList.toggle('text-danger', Math.abs(rem) > 0.0001);
+                    totalEl.classList.toggle('text-success', Math.abs(rem) <= 0.0001);
+                } else {
+                    totalEl.classList.toggle('text-danger', total <= 0);
+                    totalEl.classList.toggle('text-success', total > 0);
+                }
             }
         });
     }

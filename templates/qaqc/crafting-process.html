@@ -15,7 +15,7 @@
         </div>
     </div>
 
-    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-crafting-process" data-action="submit" data-alert="true">
+    <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>" id="form-crafting-process">
         <div class="row g-3">
             <!-- CỘT TRÁI: THÔNG TIN SẢN PHẨM THÀNH PHẨM RA LÒ -->
             <div class="col-lg-4">
@@ -226,7 +226,7 @@
                         <a href="<?=$jatbi->url('/qaqc/crafting')?>" class="btn btn-light rounded-pill px-4 pjax-load">
                             <i class="ti ti-x me-1"></i> <?=$jatbi->lang("Hủy bỏ")?>
                         </a>
-                        <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6">
+                        <button type="submit" class="btn btn-primary rounded-pill px-5 py-3 fw-bold fs-6" data-action="submit" data-alert="true" data-load="this">
                             <i class="ti ti-check me-1"></i> <?=$jatbi->lang("Hoàn tất chế tác & Đưa vào Kho TP QAQC")?>
                         </button>
                     </div>

@@ -1,0 +1,87 @@
+<div class="container-fluid mt-4">
+    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0 bg-transparent p-0">
+                <li class="breadcrumb-item small">
+                    <a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
+                </li>
+                <li class="breadcrumb-item small">
+                    <a href="<?=$jatbi->url('/qaqc/stage/' . ($stage_code ?? 'KX'))?>" class="pjax-load link-secondary"><?=$jatbi->lang("Kho QAQC")?></a>
+                </li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <!-- Nút quay lại kho -->
+            <a href="<?=$jatbi->url('/qaqc/stage/' . ($stage_code ?? 'KX'))?>" class="btn btn-eclo-light rounded-pill px-3 py-2 fw-semibold shadow-sm pjax-load">
+                <i class="ti ti-arrow-left me-1"></i> <?=$jatbi->lang("Quay lại kho")?>
+            </a>
+
+            <!-- Bộ lọc -->
+            <div class="dropdown">
+                <button class="btn btn-eclo-light fw-semibold border-0 rounded-pill px-3 py-2 small d-flex align-items-center shadow-sm"
+                    type="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
+                    <i class="ti ti-filter fs-5 me-1"></i> <?=$jatbi->lang("Điều kiện lọc")?>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end border-0 bg-body bg-opacity-25 shadow-lg rounded-4 min-width bg-blur"
+                    style="--blur:10px;--min-width:300px;--min-width-xs:100vw">
+                    <div class="fw-semibold py-2 px-3">
+                        <?=$jatbi->lang("Điều kiện lọc")?>
+                    </div>
+                    <hr class="border-secondary border-opacity-50 my-2">
+                    <div class="px-3">
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Khoảng thời gian")?></label>
+                            <input type="text" name="date" class="form-control rounded-4 filter-name"
+                                value="<?=$date_from?> - <?=$date_to?>"
+                                data-datepicker data-width="100%">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Tài khoản người chuyển")?></label>
+                            <select name="user" class="form-select rounded-4 filter-name">
+                                <?php foreach($accounts as $acc){ ?>
+                                <option value="<?=$acc['value']?>"><?=$acc['text']?></option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                    </div>
+                    <hr class="border-secondary border-opacity-50 my-2">
+                    <div class="px-3 py-2 text-end w-100">
+                        <button type="button"
+                            class="btn btn-light px-3 py-2 rounded-pill reset-filter"><?=$jatbi->lang("Làm mới")?></button>
+                        <button type="button"
+                            class="btn btn-eclo px-3 py-2 rounded-pill button-filter"><?=$jatbi->lang("Tìm")?></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <div class="custom-buttons d-none">
+            </div>
+            <table id="datatable" data-table class="table align-middle table-hover" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                data-state-save='true' style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="code" data-orderable="true" class="text-nowrap"><?=$jatbi->lang("Số phiếu")?></th>
+                        <th data-name="content" data-orderable="false" class="text-start"><?=$jatbi->lang("Nội dung")?></th>
+                        <th data-name="date" data-orderable="true" class="text-nowrap"><?=$jatbi->lang("Ngày")?></th>
+                        <th data-name="user" data-orderable="false" class="text-nowrap"><?=$jatbi->lang("Tài khoản")?></th>
+                        <th data-name="action" data-orderable="false" class="text-end text-nowrap" width="12%">
+                            <?=$jatbi->lang("Tùy chọn")?>
+                        </th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
