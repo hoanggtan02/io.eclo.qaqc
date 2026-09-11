@@ -1,0 +1,55 @@
+<div class="container-fluid mt-4">
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="mb-0 fw-bold text-body">
+                <?=$title?>
+            </h4>
+            <ul class="breadcrumb small mb-0 bg-transparent p-0">
+                <li class="breadcrumb-item small">
+                    <a href="<?=$jatbi->url('/')?>" class="pjax-load link-secondary"><?=$jatbi->lang("Trang chủ")?></a>
+                </li>
+                <li class="breadcrumb-item small text-body" aria-current="page">
+                    <?=$title?>
+                </li>
+            </ul>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button"
+                class="btn btn-eclo rounded-pill px-3 py-2 fw-semibold shadow-sm"
+                data-action="modal"
+                data-url="/qaqc/pearl-category-post">
+                <i class="ti ti-plus me-1"></i> <?=$jatbi->lang("Thêm danh mục")?>
+            </button>
+        </div>
+    </div>
+    <div class="card bg-body bg-opacity-50 shadow border-0 rounded-4">
+        <div class="card-body">
+            <div class="alert alert-light border-0 small mb-3">
+                <?=$jatbi->lang("Danh mục sản phẩm ngọc dùng để gắn cho từng dòng ngọc khi chuyển kho Từ Vệ Sinh đi Lưu Trữ (VD: Vòng tay, Chuỗi, 1 lỗ, Bông nhẫn mặt).")?>
+            </div>
+            <table id="datatable" data-table class="table align-middle" data-type="POST" data-server="true"
+                data-processing="true" data-page-length="10" data-searching="true" data-paging="true"
+                data-state-save='true' style="width:100%">
+                <thead>
+                    <tr>
+                        <th data-name="checkbox" data-orderable="false" class="text-nowrap " data-visible="true"
+                            data-class="text-center">
+                            <div class="form-check"><input class="form-check-input checkall" type="checkbox" value=""
+                                    data-checkbox="input.checker"></div>
+                        </th>
+                        <th data-name="code" data-searchable="true" data-orderable="true" class="text-nowrap "
+                            data-visible="true" data-class="text-nowrap"><?=$jatbi->lang("Mã")?></th>
+                        <th data-name="name" data-orderable="true" class="text-nowrap " data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Tên danh mục")?></th>
+                        <th data-name="notes" data-orderable="false" class="text-nowrap " data-visible="true"
+                            data-class="text-start"><?=$jatbi->lang("Ghi chú")?></th>
+                        <th data-name="status" data-orderable="false" class="text-nowrap " data-visible="true"
+                            data-class="text-center"><?=$jatbi->lang("Trạng thái")?></th>
+                        <th data-name="action" data-orderable="false" class="text-nowrap " data-visible="true"
+                            data-class="text-end"><?=$jatbi->lang("Tùy chọn")?></th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>

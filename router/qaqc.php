@@ -92,8 +92,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             "production_stage_movements.date",
             "production_stage_movement_items.pearl",
             "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.weight_gr",
             "production_stage_movement_items.amount",
             "production_stage_movement_items.weight_kg_hao_hut",
+            "production_stage_movement_items.weight_gr_hao_hut",
             "production_stage_movement_items.amount_hao_hut",
         ], [
             "production_stage_movements.batch" => $batchId,
@@ -103,16 +105,18 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         ], function ($r) use (&$stock) {
             $pid = $r['pearl'];
             if (!isset($stock[$pid])) {
-                $stock[$pid] = ['pearl' => $pid, 'weight_kg' => 0, 'amount' => 0, 'last_date' => $r['date']];
+                $stock[$pid] = ['pearl' => $pid, 'weight_kg' => 0, 'weight_gr' => 0, 'amount' => 0, 'last_date' => $r['date']];
             }
             if ($r['type'] === 'import') {
                 $stock[$pid]['weight_kg'] += floatval($r['weight_kg']);
+                $stock[$pid]['weight_gr'] += floatval($r['weight_gr'] ?? 0);
                 $stock[$pid]['amount'] += floatval($r['amount']);
                 if ($r['date'] > $stock[$pid]['last_date']) {
                     $stock[$pid]['last_date'] = $r['date'];
                 }
             } else {
                 $stock[$pid]['weight_kg'] -= (floatval($r['weight_kg']) + floatval($r['weight_kg_hao_hut'] ?? 0));
+                $stock[$pid]['weight_gr'] -= (floatval($r['weight_gr'] ?? 0) + floatval($r['weight_gr_hao_hut'] ?? 0));
                 $stock[$pid]['amount'] -= (floatval($r['amount']) + floatval($r['amount_hao_hut'] ?? 0));
             }
         });
@@ -127,7 +131,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
         // Chỉ giữ lại những dòng còn tồn thật sự (bỏ dòng đã chuyển hết = 0)
         foreach ($stock as $pid => $s) {
-            if ($s['weight_kg'] <= 0.0001 && $s['amount'] <= 0.0001) {
+            if ($s['weight_kg'] <= 0.0001 && $s['amount'] <= 0.0001 && $s['weight_gr'] <= 0.0001) {
                 unset($stock[$pid]);
             }
         }
@@ -196,7 +200,11 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 $totalVien = 0;
                 foreach ($items as $it) {
                     $parts = [];
-                    if ($it['weight_kg_initial'] !== null && $it['weight_kg_initial'] !== '') {
+                    if ($it['weight_gr_initial'] !== null && $it['weight_gr_initial'] !== ''
+                        && floatval($it['weight_gr_initial']) > 0) {
+                        $parts[] = number_format(floatval($it['weight_gr_initial']), 2) . ' ' . $jatbi->lang("gr");
+                        $totalKg += floatval($it['weight_kg_initial'] ?? 0);
+                    } elseif ($it['weight_kg_initial'] !== null && $it['weight_kg_initial'] !== '') {
                         $parts[] = number_format($it['weight_kg_initial'], 2) . ' kg';
                         $totalKg += floatval($it['weight_kg_initial']);
                     }
@@ -236,10 +244,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                                 ];
                             } else {
                                 $buttons[] = [
-                                    'type' => 'button',
+                                    'type' => 'link',
                                     'name' => $jatbi->lang("Chuyển kho"),
                                     'permission' => ['stage_transfer'],
-                                    'action' => ['data-url' => '/qaqc/transfer/' . $data['id'], 'data-action' => 'modal']
+                                    'action' => ['href' => '/qaqc/stage-transfer/' . $stage_info['code'], 'class' => 'pjax-load text-primary fw-semibold']
                                 ];
                             }
                         }
@@ -344,38 +352,55 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             $cleanItems = [];
 
             if ($code === '') {
-                $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã lô'), 'sound' => $setting['site_sound']];
+                $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã lô')];
             } elseif ($app->has('production_batches', ['code' => $code])) {
-                $error = ['status' => 'error', 'content' => $jatbi->lang('Mã lô đã tồn tại, vui lòng nhập mã khác'), 'sound' => $setting['site_sound']];
+                $error = ['status' => 'error', 'content' => $jatbi->lang('Mã lô đã tồn tại, vui lòng nhập mã khác')];
             }
 
             if (empty($error) && (!is_array($itemsRaw) || count($itemsRaw) === 0)) {
-                $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng thêm ít nhất 1 dòng chi tiết'), 'sound' => $setting['site_sound']];
+                $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng thêm ít nhất 1 dòng chi tiết')];
             }
 
             if (empty($error)) {
                 foreach ($itemsRaw as $row) {
                     $pearl_id = $app->xss($row['pearl'] ?? '');
-                    $kg = $app->xss($row['weight_kg'] ?? '');
-                    $vien = $app->xss($row['amount'] ?? '');
+                    $unit = strtolower($app->xss($row['unit'] ?? 'kg'));
+                    if (!in_array($unit, ['kg', 'gr', 'vien'])) {
+                        $unit = 'kg';
+                    }
+                    $value = $app->xss($row['value'] ?? '');
 
                     if ($pearl_id === '') {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn loại ngọc cho tất cả các dòng'), 'sound' => $setting['site_sound']];
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn loại ngọc cho tất cả các dòng')];
                         break;
                     }
 
-                    $hasKg = ($kg !== '' && is_numeric($kg) && floatval($kg) > 0);
-                    $hasVien = ($vien !== '' && is_numeric($vien) && floatval($vien) > 0);
+                    $hasValue = ($value !== '' && is_numeric($value) && floatval($value) > 0);
 
-                    if (!$hasKg && !$hasVien) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập kg hoặc số viên thực nhận hợp lệ'), 'sound' => $setting['site_sound']];
+                    if (!$hasValue) {
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập số lượng thực nhận hợp lệ')];
                         break;
+                    }
+
+                    $val = floatval($value);
+                    $kg = 0;
+                    $gr = 0;
+                    $vien = 0;
+                    if ($unit === 'gr') {
+                        // Lưu nguyên giá trị gram người dùng nhập, không tự quy đổi sang kg
+                        $gr = $val;
+                    } elseif ($unit === 'vien') {
+                        $vien = $val;
+                    } else {
+                        // Đơn vị 'gr' không quy đổi sang kg; đơn vị 'kg' giữ nguyên
+                        $kg = $val;
                     }
 
                     $cleanItems[] = [
                         'pearl' => $pearl_id,
-                        'weight_kg' => $hasKg ? floatval($kg) : 0,
-                        'amount' => $hasVien ? floatval($vien) : 0,
+                        'weight_kg' => $kg,
+                        'weight_gr' => $gr,
+                        'amount' => $vien,
                     ];
                 }
             }
@@ -389,7 +414,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 });
                 foreach ($cleanItems as $ci) {
                     if (!in_array($ci['pearl'], $validPearls)) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Một hoặc nhiều loại ngọc không hợp lệ'), 'sound' => $setting['site_sound']];
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Một hoặc nhiều loại ngọc không hợp lệ')];
                         break;
                     }
                 }
@@ -440,6 +465,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                             "batch" => $batchId,
                             "pearl" => $ci['pearl'],
                             "weight_kg_initial" => $ci['weight_kg'] > 0 ? $ci['weight_kg'] : null,
+                            "weight_gr_initial" => $ci['weight_gr'] > 0 ? $ci['weight_gr'] : null,
                             "amount_initial" => $ci['amount'] > 0 ? $ci['amount'] : null,
                             "date" => $now,
                             "user" => $userId,
@@ -468,6 +494,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                             "movement" => $movementId,
                             "pearl" => $ci['pearl'],
                             "weight_kg" => $ci['weight_kg'],
+                            "weight_gr" => $ci['weight_gr'] > 0 ? $ci['weight_gr'] : null,
                             "amount" => $ci['amount'],
                             "weight_kg_hao_hut" => 0,
                             "amount_hao_hut" => 0,
@@ -539,21 +566,39 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             foreach ($itemsRaw as $row) {
                 $rowId = $app->xss($row['id'] ?? '');
                 $deletedFlag = !empty($row['deleted']) ? 1 : 0;
-                $kg = $app->xss($row['weight_kg_initial'] ?? '');
-                $vien = $app->xss($row['amount_initial'] ?? '');
-                $hasKg = ($kg !== '' && is_numeric($kg) && floatval($kg) > 0);
-                $hasVien = ($vien !== '' && is_numeric($vien) && floatval($vien) > 0);
+                $unit = strtolower($app->xss($row['unit'] ?? 'kg'));
+                if (!in_array($unit, ['kg', 'gr', 'vien'])) {
+                    $unit = 'kg';
+                }
+                $value = $app->xss($row['value'] ?? '');
+                $hasValue = ($value !== '' && is_numeric($value) && floatval($value) > 0);
+
+                $kg = 0;
+                $gr = 0;
+                $vien = 0;
+                if ($hasValue) {
+                    $val = floatval($value);
+                    if ($unit === 'gr') {
+                        // Lưu nguyên giá trị gram người dùng nhập, không tự quy đổi sang kg
+                        $gr = $val;
+                    } elseif ($unit === 'vien') {
+                        $vien = $val;
+                    } else {
+                        $kg = $val;
+                    }
+                }
 
                 if ($rowId !== '') {
-                    // Dòng đã tồn tại từ trước — không đổi loại ngọc, chỉ đổi kg/viên hoặc xoá mềm
-                    if (!$deletedFlag && !$hasKg && !$hasVien) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập kg hoặc số viên hợp lệ'), 'sound' => $setting['site_sound']];
+                    // Dòng đã tồn tại từ trước — không đổi loại ngọc, chỉ đổi số lượng hoặc xoá mềm
+                    if (!$deletedFlag && !$hasValue) {
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập số lượng hợp lệ')];
                         break;
                     }
                     $existingUpdates[] = [
                         'id' => $rowId,
-                        'weight_kg_initial' => (!$deletedFlag && $hasKg) ? floatval($kg) : null,
-                        'amount_initial' => (!$deletedFlag && $hasVien) ? floatval($vien) : null,
+                        'weight_kg_initial' => (!$deletedFlag && $kg > 0) ? $kg : null,
+                        'weight_gr_initial' => (!$deletedFlag && $gr > 0) ? $gr : null,
+                        'amount_initial' => (!$deletedFlag && $vien > 0) ? $vien : null,
                         'deleted' => $deletedFlag,
                     ];
                 } else {
@@ -563,17 +608,18 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     }
                     $pearl_id = $app->xss($row['pearl'] ?? '');
                     if ($pearl_id === '') {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn loại ngọc cho dòng mới'), 'sound' => $setting['site_sound']];
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn loại ngọc cho dòng mới')];
                         break;
                     }
-                    if (!$hasKg && !$hasVien) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập kg hoặc số viên hợp lệ'), 'sound' => $setting['site_sound']];
+                    if (!$hasValue) {
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Mỗi dòng cần nhập số lượng hợp lệ')];
                         break;
                     }
                     $newInserts[] = [
                         'pearl' => $pearl_id,
-                        'weight_kg_initial' => $hasKg ? floatval($kg) : null,
-                        'amount_initial' => $hasVien ? floatval($vien) : null,
+                        'weight_kg_initial' => $kg > 0 ? $kg : null,
+                        'weight_gr_initial' => $gr > 0 ? $gr : null,
+                        'amount_initial' => $vien > 0 ? $vien : null,
                     ];
                 }
             }
@@ -587,7 +633,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 });
                 foreach ($newInserts as $ni) {
                     if (!in_array($ni['pearl'], $validPearls)) {
-                        $error = ['status' => 'error', 'content' => $jatbi->lang('Một hoặc nhiều loại ngọc không hợp lệ'), 'sound' => $setting['site_sound']];
+                        $error = ['status' => 'error', 'content' => $jatbi->lang('Một hoặc nhiều loại ngọc không hợp lệ')];
                         break;
                     }
                 }
@@ -602,7 +648,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     }
                 }
                 if ($remainingActive === 0) {
-                    $error = ['status' => 'error', 'content' => $jatbi->lang('Lô sản xuất phải còn ít nhất 1 dòng chi tiết'), 'sound' => $setting['site_sound']];
+                    $error = ['status' => 'error', 'content' => $jatbi->lang('Lô sản xuất phải còn ít nhất 1 dòng chi tiết')];
                 }
             }
 
@@ -619,6 +665,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 foreach ($existingUpdates as $eu) {
                     $app->update("production_batch_items", [
                         "weight_kg_initial" => $eu['weight_kg_initial'],
+                        "weight_gr_initial" => $eu['weight_gr_initial'],
                         "amount_initial" => $eu['amount_initial'],
                         "deleted" => $eu['deleted'],
                     ], ["id" => $eu['id'], "batch" => $vars['id']]);
@@ -629,6 +676,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         "batch" => $vars['id'],
                         "pearl" => $ni['pearl'],
                         "weight_kg_initial" => $ni['weight_kg_initial'],
+                        "weight_gr_initial" => $ni['weight_gr_initial'],
                         "amount_initial" => $ni['amount_initial'],
                         "date" => $now,
                         "user" => $userId,
@@ -780,7 +828,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
 
             if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $error]);
                 return;
             }
 
@@ -1016,7 +1064,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
 
             if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $error]);
                 return;
             }
 
@@ -1285,10 +1333,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                         ];
                     } else {
                         $stockBtns[] = [
-                            'type' => 'button',
+                            'type' => 'link',
                             'name' => $jatbi->lang("Chuyển kho"),
                             'permission' => ['stage_transfer'],
-                            'action' => ['data-url' => '/qaqc/transfer/' . $r['batch'], 'data-action' => 'modal']
+                            'action' => ['href' => '/qaqc/stage-transfer/' . $r['stage']['code'], 'class' => 'pjax-load text-primary fw-semibold']
                         ];
                     }
                 }
@@ -1326,7 +1374,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         'LT' => [
             'title'      => $jatbi->lang('Kho Lưu Trữ'),
             'permission' => 'stage_lt',
-            'desc'       => $jatbi->lang('Ngọc đã khoan xuyên, lưu tạm tại đây chờ Thẩm định ngọc. Dùng nút Thẩm định ngọc để gắn mã + thuộc tính rồi đưa sang Kho Chế Tác.'),
+            'desc'       => $jatbi->lang('Ngọc chuyển đến được lưu nguyên định dạng (Kg/Gr/Viên) chờ Thẩm định ngọc. Dùng nút Thẩm định ngọc để gắn mã + thuộc tính rồi đưa sang Kho Chế Tác.'),
         ],
     ];
 
@@ -1384,6 +1432,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 "production_stage_movement_items.id(item_id)",
                 "production_stage_movement_items.pearl",
                 "production_stage_movement_items.weight_kg",
+                "production_stage_movement_items.weight_gr",
                 "production_stage_movement_items.amount",
             ], [
                 "production_stage_movements.stage" => $stageInfo['id'],
@@ -1397,6 +1446,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     "batch" => $r["batch"],
                     "pearl" => $r["pearl"],
                     "weight_kg" => floatval($r["weight_kg"]),
+                    "weight_gr" => floatval($r["weight_gr"] ?? 0),
                     "amount" => floatval($r["amount"]),
                     "date" => $r["date"],
                     "notes" => $r["notes"],
@@ -1405,6 +1455,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             // 2. Lấy tổng lượng xuất khỏi kho này theo từng (batch, pearl) để trừ dần (FIFO)
             $totalExportedWeight = [];
+            $totalExportedGr = [];
             $totalExportedAmount = [];
             $app->select("production_stage_movement_items", [
                 "[><]production_stage_movements" => ["movement" => "id"],
@@ -1412,8 +1463,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 "production_stage_movements.batch",
                 "production_stage_movement_items.pearl",
                 "production_stage_movement_items.weight_kg",
+                "production_stage_movement_items.weight_gr",
                 "production_stage_movement_items.amount",
                 "production_stage_movement_items.weight_kg_hao_hut",
+                "production_stage_movement_items.weight_gr_hao_hut",
                 "production_stage_movement_items.amount_hao_hut",
             ], [
                 "production_stage_movements.stage" => $stageInfo['id'],
@@ -1421,9 +1474,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 "production_stage_movements.deleted" => 0,
                 "production_stage_movement_items.deleted" => 0,
                 "ORDER" => ["production_stage_movements.date" => "ASC", "production_stage_movements.id" => "ASC"],
-            ], function ($r) use (&$totalExportedWeight, &$totalExportedAmount) {
+            ], function ($r) use (&$totalExportedWeight, &$totalExportedGr, &$totalExportedAmount) {
                 $k = $r["batch"] . "_" . $r["pearl"];
                 $totalExportedWeight[$k] = ($totalExportedWeight[$k] ?? 0) + floatval($r["weight_kg"]) + floatval($r["weight_kg_hao_hut"] ?? 0);
+                $totalExportedGr[$k] = ($totalExportedGr[$k] ?? 0) + floatval($r["weight_gr"] ?? 0) + floatval($r["weight_gr_hao_hut"] ?? 0);
                 $totalExportedAmount[$k] = ($totalExportedAmount[$k] ?? 0) + floatval($r["amount"]) + floatval($r["amount_hao_hut"] ?? 0);
             });
 
@@ -1432,23 +1486,29 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             foreach ($imports as $imp) {
                 $k = $imp["batch"] . "_" . $imp["pearl"];
                 $expW = $totalExportedWeight[$k] ?? 0;
+                $expG = $totalExportedGr[$k] ?? 0;
                 $expA = $totalExportedAmount[$k] ?? 0;
 
+                // FIFO theo từng đơn vị riêng (kg / gram / viên) — không trộn lẫn
                 $deductW = min($imp["weight_kg"], $expW);
+                $deductG = min($imp["weight_gr"], $expG);
                 $deductA = min($imp["amount"], $expA);
 
                 $remainingW = $imp["weight_kg"] - $deductW;
+                $remainingG = $imp["weight_gr"] - $deductG;
                 $remainingA = $imp["amount"] - $deductA;
 
                 $totalExportedWeight[$k] = $expW - $deductW;
+                $totalExportedGr[$k] = $expG - $deductG;
                 $totalExportedAmount[$k] = $expA - $deductA;
 
-                if ($remainingW > 0.0001 || $remainingA > 0.0001) {
+                if ($remainingW > 0.0001 || $remainingG > 0.0001 || $remainingA > 0.0001) {
                     $activeRows[] = [
                         "movement_id" => $imp["movement_id"],
                         "batch" => $imp["batch"],
                         "pearl" => $imp["pearl"],
                         "weight_kg" => $remainingW,
+                        "weight_gr" => $remainingG,
                         "amount" => $remainingA,
                         "date" => $imp["date"],
                         "notes" => $imp["notes"],
@@ -1505,7 +1565,9 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 $isMaxima = (($pInfo['unit_mode'] ?? '') === 'kg_and_vien');
                 $badgeUnit = $isMaxima
                     ? '<span class="badge bg-info ms-1">' . $jatbi->lang("Kg+viên") . '</span>'
-                    : '<span class="badge bg-warning text-dark ms-1">' . $jatbi->lang("Kg → viên") . '</span>';
+                    : (($r['weight_gr'] ?? 0) > 0.0001
+                        ? '<span class="badge bg-success ms-1">' . $jatbi->lang("Gram") . '</span>'
+                        : '<span class="badge bg-warning text-dark ms-1">' . $jatbi->lang("Kg → viên") . '</span>');
 
                 $bCode = $batchMap[$r['batch']]['code'] ?? '-';
                 $mId = $r['movement_id'];
@@ -1514,7 +1576,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     "movement_code" => '<a href="#!" data-action="modal" data-url="/qaqc/stage-movement-views/' . $mId . '" class="fw-bold text-primary">#NK-QAQC-' . $mId . '</a>',
                     "pearl_name" => '<span class="fw-semibold text-body">' . htmlspecialchars($pName) . '</span>' . $badgeUnit,
                     "code" => '<span class="fw-bold text-body">#' . htmlspecialchars($bCode) . '</span>',
-                    "weight_kg" => $r['weight_kg'] > 0 ? number_format($r['weight_kg'], 2) . ' kg' : '-',
+                    "weight_kg" => ($r['weight_gr'] ?? 0) > 0.0001 ? (number_format($r['weight_gr'], 2) . ' gr') : ($r['weight_kg'] > 0 ? number_format($r['weight_kg'], 2) . ' kg' : '-'),
                     "amount" => $r['amount'] > 0 ? number_format($r['amount']) . ' ' . $jatbi->lang("viên") : '<span class="text-secondary">-</span>',
                     "date" => date('d/m/Y H:i', strtotime($r['date'])),
                 ];
@@ -1535,8 +1597,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             "production_stage_movements.date",
             "production_stage_movement_items.pearl",
             "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.weight_gr",
             "production_stage_movement_items.amount",
             "production_stage_movement_items.weight_kg_hao_hut",
+            "production_stage_movement_items.weight_gr_hao_hut",
             "production_stage_movement_items.amount_hao_hut",
         ], [
             "production_stage_movements.stage" => $stageId,
@@ -1549,15 +1613,18 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     'batch' => $r['batch'],
                     'pearl' => $r['pearl'],
                     'weight_kg' => 0,
+                    'weight_gr' => 0,
                     'amount' => 0,
                     'last_date' => $r['date'],
                 ];
             }
             if ($r['type'] === 'import') {
                 $agg[$key]['weight_kg'] += floatval($r['weight_kg']);
+                $agg[$key]['weight_gr'] += floatval($r['weight_gr'] ?? 0);
                 $agg[$key]['amount'] += floatval($r['amount']);
             } else {
                 $agg[$key]['weight_kg'] -= (floatval($r['weight_kg']) + floatval($r['weight_kg_hao_hut'] ?? 0));
+                $agg[$key]['weight_gr'] -= (floatval($r['weight_gr'] ?? 0) + floatval($r['weight_gr_hao_hut'] ?? 0));
                 $agg[$key]['amount'] -= (floatval($r['amount']) + floatval($r['amount_hao_hut'] ?? 0));
             }
         });
@@ -1566,7 +1633,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $batchIds = [];
         $pearlIds = [];
         foreach ($agg as $a) {
-            if ($a['weight_kg'] > 0.0001 || $a['amount'] > 0.0001) {
+            if ($a['weight_kg'] > 0.0001 || $a['amount'] > 0.0001 || $a['weight_gr'] > 0.0001) {
                 $stockItems[] = $a;
                 $batchIds[] = $a['batch'];
                 $pearlIds[] = $a['pearl'];
@@ -1597,11 +1664,33 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         return $stockItems;
     };
 
+    // Danh sách danh mục sản phẩm ngọc (pearl_categories) đang hoạt động,
+    // dùng cho dropdown gắn danh mục khi chuyển kho.
+    $getCategoryOptions = function () use ($app, $jatbi) {
+        $options = [];
+        $app->select("pearl_categories", ["id(value)", "name(text)"], [
+            "deleted" => 0,
+            "status" => 'A',
+            "ORDER" => ["id" => "ASC"],
+        ], function ($r) use (&$options) {
+            $options[] = $r;
+        });
+        return $options;
+    };
+
+    // Map id -> name của danh mục để hiển thị sau khi tra cứu
+    $getCategoryName = function ($id) use ($app) {
+        if (empty($id)) return null;
+        $row = $app->get("pearl_categories", ["name"], ["id" => $id, "deleted" => 0]);
+        return $row['name'] ?? null;
+    };
+
     // Bảng các hướng chuyển hợp lệ cho engine "giỏ hàng theo kho".
-    // KX có 2 đích: LT (tiến trình tiếp theo) hoặc VS (trả ngược về Vệ Sinh, vd phát hiện ngọc chưa sạch/lỗi).
+    // VS có 2 đích: KX (bước tiếp theo) hoặc LT (chuyển thẳng vào Lưu Trữ).
+    // KX có 2 đích: LT hoặc VS (trả ngược về Vệ Sinh, vd phát hiện ngọc chưa sạch/lỗi).
     // Đích đầu tiên trong mảng là hướng mặc định khi không truyền ?to=.
     $transferAllowedTo = [
-        'VS' => ['KX'],
+        'VS' => ['KX', 'LT'],
         'KX' => ['LT', 'VS'],
     ];
 
@@ -1617,7 +1706,15 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         return $allowed[0];
     };
 
-    $app->router('/stage-transfer/{code}', ['GET'], function ($vars) use ($app, $jatbi, $setting, $template, $stageWarehouseConfig, $getStageByCode, $getStageStockAgg, $transferAllowedTo, $resolveTransferTo) {
+    // Thứ tự tuyến tính suy từ $stageFlow để phân biệt "đi tiếp" vs "trả về"
+    $stageOrder = [];
+    $_pos = 0;
+    foreach ($stageFlow as $_f => $_t) {
+        if (!isset($stageOrder[$_f])) $stageOrder[$_f] = $_pos++;
+        if (!isset($stageOrder[$_t])) $stageOrder[$_t] = $_pos++;
+    }
+
+    $app->router('/stage-transfer/{code}', ['GET'], function ($vars) use ($app, $jatbi, $setting, $template, $stageWarehouseConfig, $getStageByCode, $getStageStockAgg, $transferAllowedTo, $resolveTransferTo, $stageOrder, $getCategoryOptions) {
         $code = strtoupper($app->xss($vars['code'] ?? ''));
         if (!isset($transferAllowedTo[$code])) {
             echo $app->render($setting['template'] . '/pages/error.html', ['content' => $jatbi->lang('Kho không hỗ trợ chức năng chuyển này')], $jatbi->ajax());
@@ -1655,7 +1752,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         foreach ($session_items as $k => &$item) {
             if (isset($stockMap[$k])) {
                 $item['stock_kg'] = floatval($stockMap[$k]['weight_kg']);
+                $stockGr = floatval($stockMap[$k]['weight_gr'] ?? 0);
+                $item['stock_gr'] = $stockGr;
                 $item['stock_vien'] = floatval($stockMap[$k]['amount']);
+                $item['weight_gr'] = min(floatval($item['weight_gr'] ?? 0), $stockGr);
                 $item['batch_code'] = $stockMap[$k]['batch_code'];
                 $item['pearl_name'] = $stockMap[$k]['pearl_name'];
                 $item['unit_mode'] = $stockMap[$k]['unit_mode'];
@@ -1673,8 +1773,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 'code' => $optCode,
                 'name' => $optStage['name'],
                 'active' => ($optCode === $toStageCode),
-                // "Trả về" khi đích không phải là bước tiến trình tiếp theo mặc định (phần tử đầu tiên)
-                'is_return' => ($optCode !== $transferAllowedTo[$code][0]),
+                // "Trả về" chỉ khi đích đứng TRƯỚC kho nguồn theo thứ tự luồng
+                // (vd KX→VS, LT→KX). VS→LT là đi tiếp chứ không phải trả về.
+                'is_return' => (
+                    isset($stageOrder[$optCode]) && isset($stageOrder[$code]) &&
+                    $stageOrder[$optCode] < $stageOrder[$code]
+                ),
             ];
         }
 
@@ -1682,9 +1786,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $vars['to_stage'] = $toStage;
         $vars['direction_options'] = $directionOptions;
         $vars['allow_loss'] = ($code === 'KX');
-        // Chỉ bước KX -> LT mới là bước "khoan xiên xong, quy đổi ra viên".
-        // KX -> VS (trả ngược hàng lỗi) thì không quy đổi vì ngọc chưa được khoan.
-        $vars['allow_convert'] = ($code === 'KX' && $toStageCode === 'LT');
+        // Bỏ quy đổi kg → viên (khoan xiên) ở mọi bước: Kho Lưu Trữ nhận nguyên
+        // định dạng (kg/gr/viên) như kho gửi, việc quy đổi thành viên nếu có sẽ
+        // do người dùng tự nhập số liệu thực tế, không ép buộc đơn vị.
+        $vars['allow_convert'] = false;
+        $vars['is_convert'] = false;
+        $vars['category_options'] = $getCategoryOptions();
         $vars['data'] = $data;
         $vars['SelectProducts'] = $session_items;
         $vars['stock_items'] = $stockItems;
@@ -1742,14 +1849,17 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             'pearl_name' => $item['pearl_name'],
             'unit_mode' => $item['unit_mode'],
             'stock_kg' => floatval($item['weight_kg']),
+            'stock_gr' => floatval($item['weight_gr'] ?? 0),
             'stock_vien' => floatval($item['amount']),
-            // Ngọc "kg_to_vien" ở bước KX -> LT: không chuyển kg, toàn bộ
-            // (trừ hao hụt) sẽ quy đổi hết thành viên -> mặc định 0 kg.
-            'weight_kg' => ($code === 'KX' && $toCode === 'LT' && (($item['unit_mode'] ?? 'kg') !== 'kg_and_vien'))
-                ? 0 : floatval($item['weight_kg']),
+            // Chuyển NGUYÊN định dạng (kg/gr/viên) như kho gửi — không quy đổi
+            // kg → viên ở bất kỳ bước nào (Kho Lưu Trữ nhận hết).
+            'weight_kg' => floatval($item['weight_kg']),
+            'weight_gr' => floatval($item['weight_gr'] ?? 0),
             'amount' => floatval($item['amount']),
             'weight_kg_hao_hut' => 0,
+            'weight_gr_hao_hut' => 0,
             'amount_hao_hut' => 0,
+            'category' => 0,
         ];
 
         $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
@@ -1784,11 +1894,6 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
         if (isset($transfer_session[$sessionKey]['items'][$key])) {
             $stockKg = floatval($transfer_session[$sessionKey]['items'][$key]['stock_kg'] ?? 0);
-            $rowUnitMode = $transfer_session[$sessionKey]['items'][$key]['unit_mode'] ?? 'kg';
-            $isConvertRow = ($code === 'KX' && $toCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
-            // Ngọc quy đổi kg -> viên ở bước KX -> LT: không cho chuyển kg, luôn ép về 0
-            // (toàn bộ trừ hao hụt phải quy đổi hết thành viên).
-            if ($isConvertRow) $val = 0;
             if ($val < 0) $val = 0;
             if ($val > $stockKg) $val = $stockKg;
             $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = $val;
@@ -1833,6 +1938,77 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         }
     });
 
+    // 4a2. Cập nhật danh mục sản phẩm ngọc cho dòng chuyển
+    $app->router('/stage-transfer-update/{code}/{to}/category/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
+        $app->header(['Content-Type' => 'application/json; charset=utf-8']);
+        $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
+        $key = $app->xss($vars['key'] ?? '');
+        $val = intval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
+
+        $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $transfer_session[$sessionKey]['items'][$key]['category'] = $val;
+            $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
+            echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
+        } else {
+            echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Không tìm thấy dòng ngọc')]);
+        }
+    });
+
+    // 4b. Cập nhật gram chuyển
+    $app->router('/stage-transfer-update/{code}/{to}/weight_gr/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
+        $app->header(['Content-Type' => 'application/json; charset=utf-8']);
+        $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
+        $key = $app->xss($vars['key'] ?? '');
+        $val = floatval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
+
+        $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockGr = floatval($transfer_session[$sessionKey]['items'][$key]['stock_gr'] ?? 0);
+            if ($val < 0) $val = 0;
+            if ($val > $stockGr) $val = $stockGr;
+            $transfer_session[$sessionKey]['items'][$key]['weight_gr'] = $val;
+
+            $lossGr = floatval($transfer_session[$sessionKey]['items'][$key]['weight_gr_hao_hut'] ?? 0);
+            if ($val + $lossGr > $stockGr) {
+                $transfer_session[$sessionKey]['items'][$key]['weight_gr_hao_hut'] = max(0, round($stockGr - $val, 3));
+            }
+
+            $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
+            echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
+        } else {
+            echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Không tìm thấy dòng ngọc')]);
+        }
+    });
+
+    // 4c. Cập nhật gram hao hụt
+    $app->router('/stage-transfer-update/{code}/{to}/loss_gr/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
+        $app->header(['Content-Type' => 'application/json; charset=utf-8']);
+        $code = strtoupper($app->xss($vars['code'] ?? ''));
+        $toCode = $resolveTransferTo($code, $app->xss($vars['to'] ?? ''));
+        $sessionKey = $code . '_' . $toCode;
+        $key = $app->xss($vars['key'] ?? '');
+        $val = floatval($app->xss(str_replace(',', '', $_POST['value'] ?? 0)));
+
+        $transfer_session = json_decode($app->getCookie('qaqc_transfer') ?? '{}', true) ?? [];
+        if (isset($transfer_session[$sessionKey]['items'][$key])) {
+            $stockGr = floatval($transfer_session[$sessionKey]['items'][$key]['stock_gr'] ?? 0);
+            if ($val < 0) $val = 0;
+            if ($val > $stockGr) $val = $stockGr;
+            $transfer_session[$sessionKey]['items'][$key]['weight_gr_hao_hut'] = $val;
+            $transfer_session[$sessionKey]['items'][$key]['weight_gr'] = max(0, round($stockGr - $val, 3));
+
+            $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
+            echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
+        } else {
+            echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Không tìm thấy dòng ngọc')]);
+        }
+    });
+
     // 5. Cập nhật kg hao hụt (Kho KX)
     $app->router('/stage-transfer-update/{code}/{to}/loss_kg/{key}', 'POST', function ($vars) use ($app, $jatbi, $resolveTransferTo) {
         $app->header(['Content-Type' => 'application/json; charset=utf-8']);
@@ -1848,16 +2024,8 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             if ($val < 0) $val = 0;
             if ($val > $stockKg) $val = $stockKg;
             $transfer_session[$sessionKey]['items'][$key]['weight_kg_hao_hut'] = $val;
-
-            $rowUnitMode = $transfer_session[$sessionKey]['items'][$key]['unit_mode'] ?? 'kg';
-            $isConvertRow = ($code === 'KX' && $toCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
-            if ($isConvertRow) {
-                // Ngọc quy đổi kg -> viên: phần còn lại sau hao hụt không chuyển
-                // tiếp dưới dạng kg mà quy đổi hết thành viên (nhập ở ô "Viên ra").
-                $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = 0;
-            } else {
-                $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = max(0, round($stockKg - $val, 2));
-            }
+            // Chuyển nguyên định dạng: phần còn lại sau hao hụt vẫn là kg.
+            $transfer_session[$sessionKey]['items'][$key]['weight_kg'] = max(0, round($stockKg - $val, 2));
 
             $app->setCookie('qaqc_transfer', json_encode($transfer_session), time() + 86400, '/');
             echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công')]);
@@ -1935,14 +2103,16 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     'pearl_name' => $it['pearl_name'],
                     'unit_mode' => $it['unit_mode'],
                     'stock_kg' => floatval($it['weight_kg']),
+                    'stock_gr' => floatval($it['weight_gr'] ?? 0),
                     'stock_vien' => floatval($it['amount']),
-                    // Xem giải thích ở route "add": ngọc kg_to_vien tại KX -> LT
-                    // không chuyển kg, quy đổi hết thành viên.
-                    'weight_kg' => ($code === 'KX' && $toCode === 'LT' && (($it['unit_mode'] ?? 'kg') !== 'kg_and_vien'))
-                        ? 0 : floatval($it['weight_kg']),
+                    // Chuyển nguyên định dạng (không quy đổi kg → viên).
+                    'weight_kg' => floatval($it['weight_kg']),
+                    'weight_gr' => floatval($it['weight_gr'] ?? 0),
                     'amount' => floatval($it['amount']),
                     'weight_kg_hao_hut' => 0,
+                    'weight_gr_hao_hut' => 0,
                     'amount_hao_hut' => 0,
+                    'category' => 0,
                 ];
             }
         }
@@ -2019,17 +2189,13 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     if (!$exportMovementId) return false;
 
                     foreach ($lines as $cl) {
-                        // Chốt an toàn: ngọc "kg_to_vien" ở bước KX -> LT không được
-                        // mang kg sang kho đích, toàn bộ (trừ hao hụt) phải quy đổi
-                        // thành viên. Ép về 0 tại đây bất kể dữ liệu cookie thế nào.
-                        $rowUnitMode = $cl['unit_mode'] ?? 'kg';
-                        $isConvertRow = ($code === 'KX' && $toStageCode === 'LT' && $rowUnitMode !== 'kg_and_vien');
-                        $weightKgToSave = $isConvertRow ? 0 : ($cl['weight_kg'] ?? 0);
-
+                        // Chuyển nguyên định dạng (kg/gr/viên) như kho gửi; không
+                        // quy đổi kg → viên nữa (Kho Lưu Trữ nhận hết các đơn vị).
                         $app->insert("production_stage_movement_items", [
                             "movement" => $exportMovementId, "pearl" => $cl['pearl'],
-                            "weight_kg" => $weightKgToSave, "amount" => $cl['amount'],
-                            "weight_kg_hao_hut" => $cl['weight_kg_hao_hut'] ?? 0, "amount_hao_hut" => $cl['amount_hao_hut'] ?? 0,
+                            "weight_kg" => $cl['weight_kg'] ?? 0, "weight_gr" => $cl['weight_gr'] ?? 0, "amount" => $cl['amount'],
+                            "weight_kg_hao_hut" => $cl['weight_kg_hao_hut'] ?? 0, "weight_gr_hao_hut" => $cl['weight_gr_hao_hut'] ?? 0, "amount_hao_hut" => $cl['amount_hao_hut'] ?? 0,
+                            "category" => intval($cl['category'] ?? 0),
                             "deleted" => 0,
                         ]);
                     }
@@ -2037,13 +2203,15 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     // Ghi nhật ký hao hụt nếu có
                     foreach ($lines as $cl) {
                         $lossKg = floatval($cl['weight_kg_hao_hut'] ?? 0);
+                        $lossGr = floatval($cl['weight_gr_hao_hut'] ?? 0);
                         $lossAmt = floatval($cl['amount_hao_hut'] ?? 0);
-                        if ($lossKg > 0 || $lossAmt > 0) {
+                        if ($lossKg > 0 || $lossGr > 0 || $lossAmt > 0) {
                             $app->insert("production_loss_logs", [
                                 "batch_id" => $bId,
                                 "stage" => $fromStage['name'],
                                 "loss_piece" => $lossAmt,
                                 "loss_weight_kg" => $lossKg,
+                                "loss_weight_gr" => $lossGr,
                                 "date" => $now,
                                 "user_id" => $userId,
                                 "reason" => "Hao hụt khi chuyển " . $fromStage['name'] . " → " . $toStage['name'],
@@ -2175,6 +2343,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 ], [
                     "production_stage_movement_items.movement",
                     "production_stage_movement_items.weight_kg",
+                    "production_stage_movement_items.weight_gr",
                     "production_stage_movement_items.amount",
                     "pearl.name(pearl_name)",
                     "pearl.unit_mode",
@@ -2195,8 +2364,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 foreach ($mItems as $mi) {
                     $isMax = (($mi['unit_mode'] ?? '') === 'kg_and_vien');
                     $kg = floatval($mi['weight_kg']);
+                    $gr = floatval($mi['weight_gr'] ?? 0);
                     $vien = floatval($mi['amount']);
                     $sub = [];
+                    if ($gr > 0.0001) $sub[] = number_format($gr, 2) . ' gr';
                     if ($kg > 0) $sub[] = number_format($kg, 2) . ' kg';
                     if ($vien > 0) $sub[] = number_format($vien) . ' v';
                     $summaryParts[] = $mi['pearl_name'] . ' (' . implode(' · ', $sub) . ')';
@@ -2265,9 +2436,11 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             "production_stage_movement_items.id",
             "production_stage_movement_items.pearl",
             "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.weight_gr",
             "production_stage_movement_items.amount",
             "production_stage_movement_items.weight_kg_hao_hut",
             "production_stage_movement_items.amount_hao_hut",
+            "production_stage_movement_items.category",
             "pearl.name(pearl_name)",
             "pearl.unit_mode",
         ], [
@@ -2276,12 +2449,20 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         ]) ?? [];
 
         if ($app->method() === 'GET') {
+            $categoryIds = array_values(array_unique(array_filter(array_column($items, 'category'))));
+            $categoryMap = [];
+            if (!empty($categoryIds)) {
+                $app->select("pearl_categories", ["id", "name"], ["id" => $categoryIds, "deleted" => 0], function ($c) use (&$categoryMap) {
+                    $categoryMap[$c['id']] = $c['name'];
+                });
+            }
             $vars['movement'] = $exportMovement;
             $vars['batch'] = $batch;
             $vars['from_stage'] = $fromStage;
             $vars['to_stage'] = $toStage;
             $vars['user'] = $user;
             $vars['items'] = $items;
+            $vars['category_map'] = $categoryMap;
             echo $app->render($template . '/qaqc/stage-import-receive-modal.html', $vars, $jatbi->ajax());
         } elseif ($app->method() === 'POST') {
             $app->header(['Content-Type' => 'application/json; charset=utf-8']);
@@ -2314,9 +2495,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                             "movement" => $importMovementId,
                             "pearl" => $it['pearl'],
                             "weight_kg" => $it['weight_kg'],
+                            "weight_gr" => $it['weight_gr'] ?? 0,
                             "amount" => $it['amount'],
                             "weight_kg_hao_hut" => 0,
+                            "weight_gr_hao_hut" => 0,
                             "amount_hao_hut" => 0,
+                            "category" => intval($it['category'] ?? 0),
                             "deleted" => 0,
                         ]);
                     }
@@ -2462,8 +2646,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 ], [
                     "production_stage_movement_items.movement",
                     "production_stage_movement_items.weight_kg",
+                    "production_stage_movement_items.weight_gr",
                     "production_stage_movement_items.amount",
                     "production_stage_movement_items.weight_kg_hao_hut",
+                    "production_stage_movement_items.weight_gr_hao_hut",
                     "production_stage_movement_items.amount_hao_hut",
                     "pearl.name(pearl_name)",
                     "pearl.unit_mode",
@@ -2482,23 +2668,27 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
                 $summaryParts = [];
                 $lossKg = 0;
+                $lossGr = 0;
                 $lossVien = 0;
                 foreach ($mItems as $mi) {
                     $isMax = (($mi['unit_mode'] ?? '') === 'kg_and_vien');
                     $pText = $mi['pearl_name'] . ' (';
                     $sub = [];
+                    if (floatval($mi['weight_gr'] ?? 0) > 0) $sub[] = number_format($mi['weight_gr'], 2) . ' gr';
                     if (floatval($mi['weight_kg']) > 0) $sub[] = number_format($mi['weight_kg'], 2) . ' kg';
                     if (floatval($mi['amount']) > 0) $sub[] = number_format($mi['amount']) . ' v';
                     $pText .= implode(' · ', $sub) . ')';
                     $summaryParts[] = $pText;
 
                     $lossKg += floatval($mi['weight_kg_hao_hut'] ?? 0);
+                    $lossGr += floatval($mi['weight_gr_hao_hut'] ?? 0);
                     $lossVien += floatval($mi['amount_hao_hut'] ?? 0);
                 }
                 $pearlSummary = !empty($summaryParts) ? implode(', ', $summaryParts) : '-';
 
                 $lossParts = [];
                 if ($lossKg > 0) $lossParts[] = number_format($lossKg, 2) . ' kg';
+                if ($lossGr > 0) $lossParts[] = number_format($lossGr, 2) . ' gr';
                 if ($lossVien > 0) $lossParts[] = number_format($lossVien) . ' v';
                 $lossSummary = !empty($lossParts) ? ('<span class="text-danger fw-bold">' . implode(' · ', $lossParts) . '</span>') : '<span class="text-secondary small">-</span>';
 
@@ -2548,9 +2738,12 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         ], [
             "production_stage_movement_items.id",
             "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.weight_gr",
             "production_stage_movement_items.amount",
             "production_stage_movement_items.weight_kg_hao_hut",
+            "production_stage_movement_items.weight_gr_hao_hut",
             "production_stage_movement_items.amount_hao_hut",
+            "production_stage_movement_items.category",
             "pearl.name(pearl_name)",
             "pearl.unit_mode",
         ], [
@@ -2560,10 +2753,18 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
         $hasLoss = false;
         foreach ($items as $it) {
-            if (floatval($it['weight_kg_hao_hut'] ?? 0) > 0 || floatval($it['amount_hao_hut'] ?? 0) > 0) {
+            if (floatval($it['weight_kg_hao_hut'] ?? 0) > 0 || floatval($it['weight_gr_hao_hut'] ?? 0) > 0 || floatval($it['amount_hao_hut'] ?? 0) > 0) {
                 $hasLoss = true;
                 break;
             }
+        }
+
+        $categoryIds = array_values(array_unique(array_filter(array_column($items, 'category'))));
+        $categoryMap = [];
+        if (!empty($categoryIds)) {
+            $app->select("pearl_categories", ["id", "name"], ["id" => $categoryIds, "deleted" => 0], function ($c) use (&$categoryMap) {
+                $categoryMap[$c['id']] = $c['name'];
+            });
         }
 
         $vars['movement'] = $movement;
@@ -2573,6 +2774,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $vars['user'] = $user;
         $vars['items'] = $items;
         $vars['has_loss'] = $hasLoss;
+        $vars['category_map'] = $categoryMap;
 
         echo $app->render($template . '/qaqc/stage-movement-views.html', $vars, $jatbi->ajax());
     })->setPermissions(['stage_transfer', 'stage_history', 'stage_vs', 'stage_kx', 'stage_lt']);
@@ -2747,7 +2949,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             $unit_mode = $app->xss($_POST['unit_mode'] ?? '');
             if (!in_array($unit_mode, ['kg_to_vien', 'kg_and_vien'])) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn cách tính đơn vị hợp lệ'), 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn cách tính đơn vị hợp lệ')]);
                 return;
             }
 
@@ -2757,6 +2959,198 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công'), 'url' => $_SERVER['HTTP_REFERER']]);
         }
     })->setPermissions(['pearl_unit.edit']);
+
+    // ============================================================
+    // 3. DANH MỤC SẢN PHẨM NGỌC (pearl_categories)
+    //    Cấu hình các danh mục gắn cho từng dòng ngọc khi chuyển kho
+    //    (VD: Vòng tay, Chuỗi, 1 lỗ, Bông nhẫn mặt).
+    //    Trang: /qaqc/pearl-category
+    // ============================================================
+    $app->router('/pearl-category', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template) {
+        if ($app->method() === 'GET') {
+            $vars['title'] = $jatbi->lang("Danh mục sản phẩm ngọc");
+            echo $app->render($template . '/qaqc/pearl-category.html', $vars);
+        } elseif ($app->method() === 'POST') {
+            $app->header(['Content-Type' => 'application/json']);
+
+            $draw = isset($_POST['draw']) ? intval($_POST['draw']) : 0;
+            $start = isset($_POST['start']) ? intval($_POST['start']) : 0;
+            $length = isset($_POST['length']) ? intval($_POST['length']) : ($setting['site_page'] ?? 10);
+            $searchValue = isset($_POST['search']['value']) ? $_POST['search']['value'] : '';
+            $orderName = isset($_POST['order'][0]['name']) ? $_POST['order'][0]['name'] : 'id';
+            $orderDir = isset($_POST['order'][0]['dir']) ? $_POST['order'][0]['dir'] : 'DESC';
+
+            $where = [
+                "AND" => [
+                    "deleted" => 0,
+                ],
+                "LIMIT" => [$start, $length],
+                "ORDER" => [$orderName => strtoupper($orderDir)],
+            ];
+
+            if ($searchValue != '') {
+                $where['AND']['OR'] = [
+                    'name[~]' => $searchValue,
+                    'code[~]' => $searchValue,
+                ];
+            }
+
+            $count = $app->count("pearl_categories", ["AND" => $where['AND']]);
+            $datas = [];
+
+            $app->select("pearl_categories", ["id", "code", "name", "notes", "status"], $where, function ($data) use (&$datas, $jatbi, $app) {
+                $datas[] = [
+                    "checkbox" => $app->component("box", ["data" => $data['id'] ?? '']),
+                    "code" => $data['code'] ?? '',
+                    "name" => $data['name'] ?? '',
+                    "notes" => $data['notes'] ?? '',
+                    "status" => ($data['status'] ?? 'A') === 'A'
+                        ? '<span class="badge bg-success bg-opacity-10 text-success">' . $jatbi->lang("Hoạt động") . '</span>'
+                        : '<span class="badge bg-danger bg-opacity-10 text-danger">' . $jatbi->lang("Ngưng") . '</span>',
+                    "action" => $app->component("action", [
+                        "button" => [
+                            [
+                                'type' => 'button',
+                                'name' => $jatbi->lang("Sửa"),
+                                'permission' => ['pearl_category.edit'],
+                                'action' => ['data-url' => '/qaqc/pearl-category-edit/' . $data['id'], 'data-action' => 'modal']
+                            ],
+                            [
+                                'type' => 'button',
+                                'name' => $jatbi->lang("Xóa"),
+                                'permission' => ['pearl_category.edit'],
+                                'action' => ['data-url' => '/qaqc/pearl-category-deleted/' . $data['id'], 'data-action' => 'click', 'data-alert' => 'true']
+                            ],
+                        ]
+                    ]),
+                ];
+            });
+
+            echo json_encode([
+                "draw" => $draw,
+                "recordsTotal" => $count,
+                "recordsFiltered" => $count,
+                "data" => $datas
+            ]);
+        }
+    })->setPermissions(['pearl_category']);
+
+    // Thêm danh mục
+    $app->router('/pearl-category-post', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template) {
+        $vars['title'] = $jatbi->lang("Thêm danh mục sản phẩm ngọc");
+
+        if ($app->method() === 'GET') {
+            echo $app->render($template . '/qaqc/pearl-category-post.html', $vars, $jatbi->ajax());
+        } elseif ($app->method() === 'POST') {
+            $app->header(['Content-Type' => 'application/json']);
+
+            $name = trim($app->xss($_POST['name'] ?? ''));
+            $code = trim($app->xss($_POST['code'] ?? ''));
+            $notes = trim($app->xss($_POST['notes'] ?? ''));
+            $status = ($_POST['status'] ?? '') === 'D' ? 'D' : 'A';
+
+            if ($code === '') {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã danh mục')]);
+                return;
+            }
+            if ($name === '') {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập tên danh mục')]);
+                return;
+            }
+
+            $check = $app->count("pearl_categories", ["AND" => ["code" => $code, "deleted" => 0]]);
+            if ($check > 0) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Mã danh mục đã tồn tại')]);
+                return;
+            }
+
+            $userId = $app->getSession("accounts")['id'] ?? 0;
+            $id = $app->insert("pearl_categories", [
+                "code" => $code,
+                "name" => $name,
+                "notes" => $notes,
+                "status" => $status,
+                "deleted" => 0,
+            ]);
+            $jatbi->logs('pearl_categories', 'create_category', ['id' => $id, 'name' => $name]);
+            echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Thêm danh mục thành công'), 'url' => $_SERVER['HTTP_REFERER']]);
+        }
+    })->setPermissions(['pearl_category.edit']);
+
+    // Sửa danh mục
+    $app->router('/pearl-category-edit/{id}', ['GET', 'POST'], function ($vars) use ($app, $jatbi, $setting, $template) {
+        $vars['title'] = $jatbi->lang("Sửa danh mục sản phẩm ngọc");
+
+        if ($app->method() === 'GET') {
+            $data = $app->select("pearl_categories", ["id", "code", "name", "notes", "status"], [
+                "AND" => ["id" => $vars['id'], "deleted" => 0],
+                "LIMIT" => 1
+            ]);
+
+            if (empty($data)) {
+                echo $app->render($setting['template'] . '/pages/error.html', $vars, $jatbi->ajax());
+                return;
+            }
+
+            $vars['data'] = $data[0];
+            echo $app->render($template . '/qaqc/pearl-category-post.html', $vars, $jatbi->ajax());
+        } elseif ($app->method() === 'POST') {
+            $app->header(['Content-Type' => 'application/json']);
+
+            $data = $app->select("pearl_categories", ["id"], [
+                "AND" => ["id" => $vars['id'], "deleted" => 0],
+                "LIMIT" => 1
+            ]);
+
+            if (empty($data)) {
+                echo json_encode(["status" => "error", "content" => $jatbi->lang("Không tìm thấy dữ liệu")]);
+                return;
+            }
+
+            $name = trim($app->xss($_POST['name'] ?? ''));
+            $code = trim($app->xss($_POST['code'] ?? ''));
+            $notes = trim($app->xss($_POST['notes'] ?? ''));
+            $status = ($_POST['status'] ?? '') === 'D' ? 'D' : 'A';
+
+            if ($code === '') {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập mã danh mục')]);
+                return;
+            }
+            if ($name === '') {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng nhập tên danh mục')]);
+                return;
+            }
+
+            $duplicate = $app->count("pearl_categories", [
+                "AND" => ["code" => $code, "deleted" => 0, "id[!]" => $vars['id']]
+            ]);
+            if ($duplicate > 0) {
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Mã danh mục đã tồn tại')]);
+                return;
+            }
+
+            $update = ["code" => $code, "name" => $name, "notes" => $notes, "status" => $status];
+            $app->update("pearl_categories", $update, ["id" => $vars['id']]);
+            $jatbi->logs('pearl_categories', 'edit_category', $update);
+            echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Cập nhật thành công'), 'url' => $_SERVER['HTTP_REFERER']]);
+        }
+    })->setPermissions(['pearl_category.edit']);
+
+    // Xóa danh mục (soft delete)
+    $app->router('/pearl-category-deleted/{id}', ['POST'], function ($vars) use ($app, $jatbi) {
+        $app->header(['Content-Type' => 'application/json']);
+        $data = $app->select("pearl_categories", ["id"], [
+            "AND" => ["id" => $vars['id'], "deleted" => 0],
+            "LIMIT" => 1
+        ]);
+        if (empty($data)) {
+            echo json_encode(["status" => "error", "content" => $jatbi->lang("Không tìm thấy dữ liệu")]);
+            return;
+        }
+        $app->update("pearl_categories", ["deleted" => 1], ["id" => $vars['id']]);
+        $jatbi->logs('pearl_categories', 'delete_category', ['id' => $vars['id']]);
+        echo json_encode(['status' => 'success', 'content' => $jatbi->lang('Đã xóa danh mục'), 'url' => $_SERVER['HTTP_REFERER']]);
+    })->setPermissions(['pearl_category.edit']);
 
 
 
@@ -3028,7 +3422,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
 
             if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $error]);
                 return;
             }
 
@@ -3411,11 +3805,11 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
 
             $totalStockAmount = array_sum(array_column($stock, 'amount'));
             if ($amount <= 0 || $amount > $totalStockAmount) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Số lượng phân bổ không hợp lệ (Tối đa: ') . $totalStockAmount . ')', 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Số lượng phân bổ không hợp lệ (Tối đa: ') . $totalStockAmount . ')']);
                 return;
             }
             if ($storeId <= 0) {
-                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn Cửa hàng tiếp nhận'), 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $jatbi->lang('Vui lòng chọn Cửa hàng tiếp nhận')]);
                 return;
             }
 
@@ -3689,7 +4083,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
 
             if ($error !== '') {
-                echo json_encode(['status' => 'error', 'content' => $error, 'sound' => $setting['site_sound']]);
+                echo json_encode(['status' => 'error', 'content' => $error]);
                 return;
             }
 
@@ -3778,8 +4172,10 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             "production_stage_movements.type",
             "production_stage_movement_items.pearl",
             "production_stage_movement_items.weight_kg",
+            "production_stage_movement_items.weight_gr",
             "production_stage_movement_items.amount",
             "production_stage_movement_items.weight_kg_hao_hut",
+            "production_stage_movement_items.weight_gr_hao_hut",
             "production_stage_movement_items.amount_hao_hut",
         ], [
             "production_stage_movements.stage" => $fromStage['id'],
@@ -3792,14 +4188,17 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                     'batch' => $r['batch'],
                     'pearl' => $r['pearl'],
                     'weight_kg' => 0,
+                    'weight_gr' => 0,
                     'amount' => 0,
                 ];
             }
             if ($r['type'] === 'import') {
                 $agg[$key]['weight_kg'] += floatval($r['weight_kg']);
+                $agg[$key]['weight_gr'] += floatval($r['weight_gr'] ?? 0);
                 $agg[$key]['amount'] += floatval($r['amount']);
             } else {
                 $agg[$key]['weight_kg'] -= (floatval($r['weight_kg']) + floatval($r['weight_kg_hao_hut'] ?? 0));
+                $agg[$key]['weight_gr'] -= (floatval($r['weight_gr'] ?? 0) + floatval($r['weight_gr_hao_hut'] ?? 0));
                 $agg[$key]['amount'] -= (floatval($r['amount']) + floatval($r['amount_hao_hut'] ?? 0));
             }
         });
@@ -3808,7 +4207,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
         $batchIds = [];
         $pearlIds = [];
         foreach ($agg as $a) {
-            if ($a['weight_kg'] > 0.0001 || $a['amount'] > 0.0001) {
+            if ($a['weight_kg'] > 0.0001 || $a['weight_gr'] > 0.0001 || $a['amount'] > 0.0001) {
                 $stockItems[] = $a;
                 $batchIds[] = $a['batch'];
                 $pearlIds[] = $a['pearl'];
@@ -3840,6 +4239,9 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
             }
 
             $infoParts = [];
+            if (($it['weight_gr'] ?? 0) > 0.0001) {
+                $infoParts[] = number_format($it['weight_gr'], 2) . ' gr';
+            }
             if ($it['weight_kg'] > 0) {
                 $infoParts[] = number_format($it['weight_kg'], 2) . ' kg';
             }
@@ -3861,6 +4263,7 @@ $app->group($setting['manager'] . "/qaqc", function ($app) use ($jatbi, $setting
                 'pearl' => $it['pearl'],
                 'pearl_name' => $pearlName,
                 'weight_kg' => floatval($it['weight_kg']),
+                'weight_gr' => floatval($it['weight_gr'] ?? 0),
                 'amount' => floatval($it['amount']),
                 'unit_mode' => $unitMode,
                 'url' => '/qaqc/stage-transfer-update/' . $code . '/' . $toCode . '/add/' . $it['batch'] . '/' . $it['pearl'],

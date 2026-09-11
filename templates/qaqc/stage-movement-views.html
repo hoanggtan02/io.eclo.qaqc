@@ -44,8 +44,9 @@
                             <tr class="small text-secondary">
                                 <th style="width: 40px;" class="text-center">STT</th>
                                 <th class="text-start"><?=$jatbi->lang("Loại ngọc")?></th>
+                                <th class="text-start"><?=$jatbi->lang("Danh mục sản phẩm")?></th>
                                 <th class="text-center"><?=$jatbi->lang("Đơn vị tính")?></th>
-                                <th class="text-end"><?=$jatbi->lang("Số lượng (Kg)")?></th>
+                                <th class="text-end"><?=$jatbi->lang("Số lượng (Kg/Gr)")?></th>
                                 <th class="text-end"><?=$jatbi->lang("Số lượng (Viên)")?></th>
                                 <?php if ($has_loss) { ?>
                                 <th class="text-end text-danger"><?=$jatbi->lang("Kg hao hụt")?></th>
@@ -57,32 +58,46 @@
                             <?php 
                             $stt = 0; 
                             $total_kg = 0; 
+                            $total_gr = 0;
                             $total_vien = 0;
                             $total_loss_kg = 0;
+                            $total_loss_gr = 0;
                             $total_loss_vien = 0;
                             foreach ($items as $item): 
                                 $stt++;
                                 $isMaxima = (($item['unit_mode'] ?? '') === 'kg_and_vien');
-                                $kg = floatval($item['weight_kg'] ?? 0);
+                                $gr = floatval($item['weight_gr'] ?? 0);
+                                $kg = ($gr > 0.0001) ? 0 : floatval($item['weight_kg'] ?? 0);
                                 $vien = floatval($item['amount'] ?? 0);
-                                $lossKg = floatval($item['weight_kg_hao_hut'] ?? 0);
+                                $lossGr = floatval($item['weight_gr_hao_hut'] ?? 0);
+                                $lossKg = ($lossGr > 0.0001) ? 0 : floatval($item['weight_kg_hao_hut'] ?? 0);
                                 $lossVien = floatval($item['amount_hao_hut'] ?? 0);
 
                                 $total_kg += $kg;
+                                $total_gr += $gr;
                                 $total_vien += $vien;
                                 $total_loss_kg += $lossKg;
+                                $total_loss_gr += $lossGr;
                                 $total_loss_vien += $lossVien;
                             ?>
                                 <tr>
                                     <td class="text-center small"><?=$stt?></td>
                                     <td class="fw-semibold text-body"><?=htmlspecialchars($item['pearl_name'] ?? 'N/A')?></td>
-                                    <td class="text-center small">
-                                        <?=$isMaxima ? '<span class="badge bg-info">Kg + Viên</span>' : '<span class="badge bg-warning text-dark">Kg</span>'?>
+                                    <td class="text-start small">
+                                        <?php $catName = $category_map[$item['category'] ?? 0] ?? null; ?>
+                                        <?php if ($catName) { ?>
+                                        <span class="badge bg-light text-body border px-2 py-1"><?=htmlspecialchars($catName)?></span>
+                                        <?php } else { ?>
+                                        <span class="text-secondary small">—</span>
+                                        <?php } ?>
                                     </td>
-                                    <td class="text-end fw-bold text-body"><?=$kg > 0 ? (number_format($kg, 2) . ' kg') : '-'?></td>
+                                    <td class="text-center small">
+                                        <?=($gr > 0.0001) ? '<span class="badge bg-success">Gram</span>' : ($isMaxima ? '<span class="badge bg-info">Kg + Viên</span>' : '<span class="badge bg-warning text-dark">Kg</span>')?>
+                                    </td>
+                                    <td class="text-end fw-bold text-body"><?=($gr > 0.0001) ? (number_format($gr, 2) . ' gr') : ($kg > 0 ? (number_format($kg, 2) . ' kg') : '-')?></td>
                                     <td class="text-end fw-bold text-body"><?=($isMaxima && $vien > 0) ? (number_format($vien) . ' viên') : '-'?></td>
                                     <?php if ($has_loss) { ?>
-                                    <td class="text-end text-danger fw-bold"><?=$lossKg > 0 ? (number_format($lossKg, 2) . ' kg') : '-'?></td>
+                                    <td class="text-end text-danger fw-bold"><?=($lossGr > 0.0001) ? (number_format($lossGr, 2) . ' gr') : ($lossKg > 0 ? (number_format($lossKg, 2) . ' kg') : '-')?></td>
                                     <td class="text-end text-danger fw-bold"><?=($isMaxima && $lossVien > 0) ? (number_format($lossVien) . ' viên') : '-'?></td>
                                     <?php } ?>
                                 </tr>
@@ -90,11 +105,11 @@
                         </tbody>
                         <tfoot>
                             <tr class="fw-bold table-light">
-                                <td colspan="3" class="text-end"><?=$jatbi->lang("Tổng cộng")?>:</td>
-                                <td class="text-end text-primary fs-6"><?=number_format($total_kg, 2)?> kg</td>
+                                <td colspan="4" class="text-end"><?=$jatbi->lang("Tổng cộng")?>:</td>
+                                <td class="text-end text-primary fs-6"><?=($total_gr > 0.0001) ? (number_format($total_gr, 2) . ' gr') : (number_format($total_kg, 2) . ' kg')?></td>
                                 <td class="text-end text-primary fs-6"><?=$total_vien > 0 ? (number_format($total_vien) . ' viên') : '-'?></td>
                                 <?php if ($has_loss) { ?>
-                                <td class="text-end text-danger fs-6"><?=$total_loss_kg > 0 ? (number_format($total_loss_kg, 2) . ' kg') : '-'?></td>
+                                <td class="text-end text-danger fs-6"><?=($total_loss_gr > 0.0001) ? (number_format($total_loss_gr, 2) . ' gr') : ($total_loss_kg > 0 ? (number_format($total_loss_kg, 2) . ' kg') : '-')?></td>
                                 <td class="text-end text-danger fs-6"><?=$total_loss_vien > 0 ? (number_format($total_loss_vien) . ' viên') : '-'?></td>
                                 <?php } ?>
                             </tr>

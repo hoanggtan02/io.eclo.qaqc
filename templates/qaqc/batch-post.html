@@ -57,7 +57,7 @@
 
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <label class="form-label small text-secondary mb-0 fw-semibold">
-                                    <?=$jatbi->lang("Chi tiết lô (mỗi dòng 1 loại ngọc, có thể nhập kg và/hoặc số viên)")?>
+                                    <?=$jatbi->lang("Chi tiết lô (mỗi dòng 1 loại ngọc, chọn đơn vị Kg / Gr / Viên và nhập số lượng)")?>
                                 </label>
                                 <button type="button" id="btn-add-item"
                                     class="btn btn-sm btn-eclo-light rounded-pill fw-semibold">
@@ -137,16 +137,48 @@
         emptyHint.style.display = rows.length === 0 ? '' : 'none';
     }
 
+    function unitSelectionsHtml(idx, unit) {
+        var options = ['kg', 'gr', 'vien'];
+        var labels = {
+            'kg': 'Kg',
+            'gr': 'Gr',
+            'vien': '<?=$jatbi->lang("Viên")?>'
+        };
+        var html = '<select name="items[' + idx + '][unit]" class="form-select rounded-4 select-unit">';
+        options.forEach(function (u) {
+            html += '<option value="' + u + '"' + (u === unit ? ' selected' : '') + '>' + labels[u] + '</option>';
+        });
+        html += '</select>';
+        return html;
+    }
+
     function addRow(existing) {
         var idx = rowIndex++;
         var row = document.createElement('div');
         row.className = 'batch-item-row border rounded-4 p-3 mb-2';
         row.setAttribute('data-row', '1');
 
-        var kgVal = (existing && existing.weight_kg_initial !== null && existing.weight_kg_initial !== undefined)
-            ? existing.weight_kg_initial : '';
-        var vienVal = (existing && existing.amount_initial !== null && existing.amount_initial !== undefined)
-            ? existing.amount_initial : '';
+        // Xác định đơn vị + giá trị ban đầu cho dòng đã có sẵn
+        var unit = 'kg';
+        var value = '';
+        if (existing) {
+            var kgInit = existing.weight_kg_initial !== null && existing.weight_kg_initial !== undefined
+                ? parseFloat(existing.weight_kg_initial) : 0;
+            var grInit = existing.weight_gr_initial !== null && existing.weight_gr_initial !== undefined
+                ? parseFloat(existing.weight_gr_initial) : 0;
+            var vienInit = existing.amount_initial !== null && existing.amount_initial !== undefined
+                ? parseFloat(existing.amount_initial) : 0;
+            if (grInit > 0) {
+                unit = 'gr';
+                value = grInit;
+            } else if (kgInit > 0) {
+                unit = 'kg';
+                value = kgInit;
+            } else if (vienInit > 0) {
+                unit = 'vien';
+                value = vienInit;
+            }
+        }
 
         var pearlCell;
         if (existing) {
@@ -164,20 +196,40 @@
         row.innerHTML = ''
             + '<div class="row g-2 align-items-end">'
             + '  <div class="col-12 col-md-5">' + pearlCell + '</div>'
-            + '  <div class="col-6 col-md-3">'
-            + '    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Kg")?></label>'
-            + '    <input type="number" step="0.01" min="0" class="form-control rounded-4" name="items[' + idx + '][weight_kg_initial]" value="' + esc(kgVal) + '">'
+            + '  <div class="col-6 col-md-2">'
+            + '    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Đơn vị")?></label>'
+            + unitSelectionsHtml(idx, unit)
             + '  </div>'
             + '  <div class="col-6 col-md-3">'
-            + '    <label class="form-label small text-secondary mb-1"><?=$jatbi->lang("Số viên")?></label>'
-            + '    <input type="number" step="1" min="0" class="form-control rounded-4" name="items[' + idx + '][amount_initial]" value="' + esc(vienVal) + '">'
+            + '    <label class="form-label small text-secondary mb-1 label-value"><?=$jatbi->lang("Số lượng")?></label>'
+            + '    <input type="number" step="any" min="0" class="form-control rounded-4" name="items[' + idx + '][value]" value="' + esc(value) + '">'
             + '  </div>'
-            + '  <div class="col-12 col-md-1 text-end">'
+            + '  <div class="col-12 col-md-2 text-end">'
             + '    <button type="button" class="btn btn-outline-danger rounded-circle btn-remove-row" title="<?=$jatbi->lang("Xóa dòng")?>">'
             + '      <i class="ti ti-trash"></i>'
             + '    </button>'
             + '  </div>'
             + '</div>';
+
+        var unitSelect = row.querySelector('.select-unit');
+        var valueInput = row.querySelector('input[name$="[value]"]');
+        var labelValue = row.querySelector('.label-value');
+
+        function refreshLabel() {
+            var u = unitSelect.value;
+            if (u === 'gr') {
+                labelValue.innerHTML = '<?=$jatbi->lang("Số gram")?> <span class="text-danger">*</span>';
+                valueInput.step = 'any';
+            } else if (u === 'vien') {
+                labelValue.innerHTML = '<?=$jatbi->lang("Số viên")?> <span class="text-danger">*</span>';
+                valueInput.step = '1';
+            } else {
+                labelValue.innerHTML = '<?=$jatbi->lang("Số kg")?> <span class="text-danger">*</span>';
+                valueInput.step = 'any';
+            }
+        }
+        unitSelect.addEventListener('change', refreshLabel);
+        refreshLabel();
 
         if (existing) {
             var hiddenDeleted = document.createElement('input');
@@ -229,15 +281,11 @@
             return;
         }
         for (var i = 0; i < activeRows.length; i++) {
-            var kgInput = activeRows[i].querySelector('input[name$="[weight_kg_initial]"]');
-            var vienInput = activeRows[i].querySelector('input[name$="[amount_initial]"]');
-            var kg = kgInput ? parseFloat(kgInput.value) : NaN;
-            var vien = vienInput ? parseFloat(vienInput.value) : NaN;
-            var hasKg = !isNaN(kg) && kg > 0;
-            var hasVien = !isNaN(vien) && vien > 0;
-            if (!hasKg && !hasVien) {
+            var valueInput = activeRows[i].querySelector('input[name$="[value]"]');
+            var value = valueInput ? parseFloat(valueInput.value) : NaN;
+            if (isNaN(value) || value <= 0) {
                 e.preventDefault();
-                alert('<?=$jatbi->lang("Mỗi dòng cần nhập kg hoặc số viên hợp lệ")?>');
+                alert('<?=$jatbi->lang("Mỗi dòng cần nhập số lượng hợp lệ")?>');
                 return;
             }
             var pearlSelect = activeRows[i].querySelector('select[name$="[pearl]"]');

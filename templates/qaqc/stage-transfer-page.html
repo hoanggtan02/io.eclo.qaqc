@@ -66,9 +66,6 @@
                 <ul class="small text-secondary ps-3 mb-0">
                     <li class="mb-1"><?=$jatbi->lang("Gõ mã lô (#LO-...) vào ô tìm kiếm để chọn ngọc cần chuyển.")?></li>
                     <li class="mb-1"><?=$jatbi->lang("Điều chỉnh số Kg hoặc số Viên chuyển đi theo thực tế.")?></li>
-                    <?php if ($is_convert) { ?>
-                    <li class="mb-1 text-primary"><?=$jatbi->lang("Quy đổi KX → LT: nhập Kg đưa khoan, Kg hao hụt và số Viên nhận được sau khi khoan xiên. Kho LT chỉ lưu dạng viên.")?></li>
-                    <?php } ?>
                     <?php if ($allow_loss) { ?>
                     <li class="text-danger"><?=$jatbi->lang("Kho Khoan Xuyên: Có thể nhập số Kg/Viên hao hụt do khoan.")?></li>
                     <?php } ?>
@@ -123,19 +120,14 @@
                                     <th style="width: 40px;" class="text-center">#</th>
                                     <th class="text-nowrap"><?=$jatbi->lang("Mã lô")?></th>
                                     <th class="text-nowrap"><?=$jatbi->lang("Loại ngọc")?></th>
-                                    <th class="text-end text-nowrap"><?=$jatbi->lang("Kg tồn")?></th>
+                                    <th class="text-nowrap"><?=$jatbi->lang("Danh mục sản phẩm")?></th>
+                                    <th class="text-end text-nowrap"><?=$jatbi->lang("Kg/Gr tồn")?></th>
                                     <th class="text-end text-nowrap"><?=$jatbi->lang("Viên tồn")?></th>
-                                    <th style="width: 130px;" class="text-end text-nowrap"><?=$is_convert ? $jatbi->lang("Kg đưa khoan") : $jatbi->lang("Kg chuyển")?> <span class="text-danger">*</span></th>
-                                    <?php if ($is_convert) { ?>
-                                    <th style="width: 160px;" class="text-end text-nowrap"><?=$jatbi->lang("Viên nhận sau khoan")?> <span class="text-danger">*</span></th>
-                                    <?php } else { ?>
+                                    <th style="width: 130px;" class="text-end text-nowrap"><?=$jatbi->lang("Kg/Gr chuyển")?> <span class="text-danger">*</span></th>
                                     <th style="width: 120px;" class="text-end text-nowrap"><?=$jatbi->lang("Viên chuyển")?></th>
-                                    <?php } ?>
                                     <?php if ($allow_loss) { ?>
-                                    <th style="width: 130px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Kg hao hụt")?></th>
-                                    <?php if (!$is_convert) { ?>
+                                    <th style="width: 130px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Kg/Gr hao hụt")?></th>
                                     <th style="width: 120px;" class="text-end text-danger text-nowrap"><?=$jatbi->lang("Viên hao hụt")?></th>
-                                    <?php } ?>
                                     <?php } ?>
                                     <th style="width: 40px;" class="text-center"></th>
                                 </tr>
@@ -144,32 +136,44 @@
                                 <?php
                                 $stt = 0;
                                 $sum_stock_kg = 0;
+                                $sum_stock_gr = 0;
                                 $sum_stock_vien = 0;
                                 $sum_trans_kg = 0;
+                                $sum_trans_gr = 0;
                                 $sum_trans_vien = 0;
-                                $sum_convert = 0;
                                 $sum_loss_kg = 0;
+                                $sum_loss_gr = 0;
                                 $sum_loss_vien = 0;
                                 $has_items = !empty($SelectProducts);
 
                                 if ($has_items) {
                                     foreach ($SelectProducts as $key => $item) {
                                         $stt++;
-                                        $isMaxima = (($item['unit_mode'] ?? 'kg') === 'kg_and_vien');
                                         $stockKg = floatval($item['stock_kg'] ?? 0);
+                                        $stockGr = floatval($item['stock_gr'] ?? 0);
                                         $stockVien = floatval($item['stock_vien'] ?? 0);
                                         $transKg = floatval($item['weight_kg'] ?? 0);
+                                        $transGr = floatval($item['weight_gr'] ?? 0);
                                         $transVien = floatval($item['amount'] ?? 0);
-                                        $convertVien = intval($item['amount_convert'] ?? 0);
                                         $lossKg = floatval($item['weight_kg_hao_hut'] ?? 0);
+                                        $lossGr = floatval($item['weight_gr_hao_hut'] ?? 0);
                                         $lossVien = floatval($item['amount_hao_hut'] ?? 0);
+                                        // Dòng vừa có Kg vừa có Gr: hiện cả 2 ô nhập (không cần chọn lại mã lô)
+                                        $hasKg = ($stockKg > 0.0001);
+                                        $hasGr = ($stockGr > 0.0001);
+                                        // Dòng chỉ tính theo gram: chỉ hiện ô gram
+                                        $isGram = ($hasGr && !$hasKg);
+                                        // Kho giữ nguyên định dạng: có viên là hiện cột viên
+                                        $hasVien = ($stockVien > 0.0001);
 
                                         $sum_stock_kg += $stockKg;
+                                        $sum_stock_gr += $stockGr;
                                         $sum_stock_vien += $stockVien;
                                         $sum_trans_kg += $transKg;
+                                        $sum_trans_gr += $transGr;
                                         $sum_trans_vien += $transVien;
-                                        $sum_convert += $convertVien;
                                         $sum_loss_kg += $lossKg;
+                                        $sum_loss_gr += $lossGr;
                                         $sum_loss_vien += $lossVien;
                                 ?>
                                 <tr>
@@ -179,19 +183,79 @@
                                     </td>
                                     <td class="text-nowrap">
                                         <span class="fw-semibold text-body"><?=htmlspecialchars($item['pearl_name'] ?? '')?></span>
-                                        <?php if ($isMaxima) { ?>
-                                        <span class="badge bg-info ms-1"><?=$jatbi->lang("Kg+viên")?></span>
+                                        <?php if ($isGram) { ?>
+                                        <span class="badge bg-success ms-1"><?=$jatbi->lang("Gram")?></span>
+                                        <?php } elseif ($hasKg && $hasVien) { ?>
+                                        <span class="badge bg-info ms-1"><?=$jatbi->lang("Kg + Viên")?></span>
+                                        <?php } elseif ($hasKg && $hasGr) { ?>
+                                        <span class="badge bg-primary ms-1"><?=$jatbi->lang("Kg + Gram")?></span>
+                                        <?php } elseif ($hasVien) { ?>
+                                        <span class="badge bg-primary ms-1"><?=$jatbi->lang("Viên")?></span>
                                         <?php } else { ?>
                                         <span class="badge bg-warning text-dark ms-1"><?=$jatbi->lang("Kg")?></span>
                                         <?php } ?>
                                     </td>
-                                    <td class="text-end fw-semibold text-body text-nowrap">
-                                        <?=$stockKg > 0 ? (number_format($stockKg, 2) . ' kg') : '-'?>
+                                    <td class="text-nowrap" style="min-width: 160px;">
+                                        <select class="form-select form-select-sm rounded-3"
+                                            data-load="this"
+                                            data-selector="[data-pos-table]"
+                                            data-action="change"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/category/<?=$key?>"
+                                            data-form='{"value":"this.val"}'>
+                                            <option value="0" <?=empty($item['category']) ? 'selected' : ''?>>
+                                                <?=$jatbi->lang("— Chọn danh mục —")?>
+                                            </option>
+                                            <?php if (!empty($category_options)) { foreach ($category_options as $opt) { ?>
+                                            <option value="<?=(int)$opt['value']?>" <?=(isset($item['category']) && (int)$item['category'] === (int)$opt['value']) ? 'selected' : ''?>>
+                                                <?=htmlspecialchars($opt['text'] ?? '')?>
+                                            </option>
+                                            <?php } } ?>
+                                        </select>
                                     </td>
                                     <td class="text-end fw-semibold text-body text-nowrap">
-                                        <?=($isMaxima && $stockVien > 0) ? (number_format($stockVien) . ' ' . $jatbi->lang("viên")) : '<span class="text-secondary small">-</span>'?>
+                                        <?php if ($hasKg && $hasGr) { ?>
+                                            <?=number_format($stockKg, 2)?> kg <?=$jatbi->lang("+")?> <?=number_format($stockGr, 2)?> gr
+                                        <?php } elseif ($isGram) { ?>
+                                            <?=number_format($stockGr, 2)?> gr
+                                        <?php } else { ?>
+                                            <?=($stockKg > 0) ? (number_format($stockKg, 2) . ' kg') : '-'?>
+                                        <?php } ?>
+                                    </td>
+                                    <td class="text-end fw-semibold text-body text-nowrap">
+                                        <?=($hasVien) ? (number_format($stockVien) . ' ' . $jatbi->lang("viên")) : '<span class="text-secondary small">-</span>'?>
                                     </td>
                                     <td class="text-end">
+                                        <?php if ($hasKg && $hasGr) { ?>
+                                        <div class="d-flex flex-column gap-1" style="min-width: 150px;">
+                                            <input type="number" step="0.01" min="0" max="<?=$stockKg?>"
+                                                class="form-control form-control-sm rounded-3 text-end fw-bold"
+                                                value="<?=$transKg?>"
+                                                data-load="this"
+                                                data-selector="[data-pos-table]"
+                                                data-action="change"
+                                                data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/weight_kg/<?=$key?>"
+                                                data-form='{"value":"this.val"}'
+                                                title="<?=$jatbi->lang("Kg chuyển")?>">
+                                            <input type="number" step="0.001" min="0" max="<?=$stockGr?>"
+                                                class="form-control form-control-sm rounded-3 text-end fw-bold"
+                                                value="<?=$transGr?>"
+                                                data-load="this"
+                                                data-selector="[data-pos-table]"
+                                                data-action="change"
+                                                data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/weight_gr/<?=$key?>"
+                                                data-form='{"value":"this.val"}'
+                                                title="<?=$jatbi->lang("Gram chuyển")?>">
+                                        </div>
+                                        <?php } elseif ($isGram) { ?>
+                                        <input type="number" step="0.001" min="0" max="<?=$stockGr?>"
+                                            class="form-control form-control-sm rounded-3 text-end fw-bold"
+                                            value="<?=$transGr?>"
+                                            data-load="this"
+                                            data-selector="[data-pos-table]"
+                                            data-action="change"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/weight_gr/<?=$key?>"
+                                            data-form='{"value":"this.val"}'>
+                                        <?php } else { ?>
                                         <input type="number" step="0.01" min="0" max="<?=$stockKg?>"
                                             class="form-control form-control-sm rounded-3 text-end fw-bold"
                                             value="<?=$transKg?>"
@@ -200,19 +264,10 @@
                                             data-action="change"
                                             data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/weight_kg/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
+                                        <?php } ?>
                                     </td>
                                     <td class="text-end">
-                                        <?php if ($is_convert) { ?>
-                                        <input type="number" step="1" min="0"
-                                            class="form-control form-control-sm rounded-3 text-end fw-bold text-primary"
-                                            value="<?=$convertVien > 0 ? $convertVien : ''?>"
-                                            placeholder="0"
-                                            data-load="this"
-                                            data-selector="[data-pos-table]"
-                                            data-action="change"
-                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/amount_convert/<?=$key?>"
-                                            data-form='{"value":"this.val"}'>
-                                        <?php } elseif ($isMaxima) { ?>
+                                        <?php if ($hasVien) { ?>
                                         <input type="number" step="1" min="0" max="<?=$stockVien?>"
                                             class="form-control form-control-sm rounded-3 text-end fw-bold"
                                             value="<?=$transVien > 0 ? $transVien : ''?>"
@@ -227,6 +282,40 @@
                                     </td>
                                     <?php if ($allow_loss) { ?>
                                     <td class="text-end">
+                                        <?php if ($hasKg && $hasGr) { ?>
+                                        <div class="d-flex flex-column gap-1" style="min-width: 150px;">
+                                            <input type="number" step="0.01" min="0" max="<?=$stockKg?>"
+                                                class="form-control form-control-sm rounded-3 text-end text-danger border-danger border-opacity-50 fw-bold"
+                                                value="<?=$lossKg > 0 ? $lossKg : '0'?>"
+                                                placeholder="0.00"
+                                                data-load="this"
+                                                data-selector="[data-pos-table]"
+                                                data-action="change"
+                                                data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_kg/<?=$key?>"
+                                                data-form='{"value":"this.val"}'
+                                                title="<?=$jatbi->lang("Kg hao hụt")?>">
+                                            <input type="number" step="0.001" min="0" max="<?=$stockGr?>"
+                                                class="form-control form-control-sm rounded-3 text-end text-danger border-danger border-opacity-50 fw-bold"
+                                                value="<?=$lossGr > 0 ? $lossGr : '0'?>"
+                                                placeholder="0.000"
+                                                data-load="this"
+                                                data-selector="[data-pos-table]"
+                                                data-action="change"
+                                                data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_gr/<?=$key?>"
+                                                data-form='{"value":"this.val"}'
+                                                title="<?=$jatbi->lang("Gram hao hụt")?>">
+                                        </div>
+                                        <?php } elseif ($isGram) { ?>
+                                        <input type="number" step="0.001" min="0" max="<?=$stockGr?>"
+                                            class="form-control form-control-sm rounded-3 text-end text-danger border-danger border-opacity-50 fw-bold"
+                                            value="<?=$lossGr > 0 ? $lossGr : '0'?>"
+                                            placeholder="0.000"
+                                            data-load="this"
+                                            data-selector="[data-pos-table]"
+                                            data-action="change"
+                                            data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_gr/<?=$key?>"
+                                            data-form='{"value":"this.val"}'>
+                                        <?php } else { ?>
                                         <input type="number" step="0.01" min="0" max="<?=$stockKg?>"
                                             class="form-control form-control-sm rounded-3 text-end text-danger border-danger border-opacity-50 fw-bold"
                                             value="<?=$lossKg > 0 ? $lossKg : '0'?>"
@@ -236,10 +325,10 @@
                                             data-action="change"
                                             data-url="/qaqc/stage-transfer-update/<?=$from_stage['code']?>/<?=$to_stage['code']?>/loss_kg/<?=$key?>"
                                             data-form='{"value":"this.val"}'>
+                                        <?php } ?>
                                     </td>
-                                    <?php if (!$is_convert) { ?>
                                     <td class="text-end">
-                                        <?php if ($isMaxima) { ?>
+                                        <?php if ($hasVien) { ?>
                                         <input type="number" step="1" min="0" max="<?=$stockVien?>"
                                             class="form-control form-control-sm rounded-3 text-end text-danger border-danger border-opacity-50 fw-bold"
                                             value="<?=$lossVien > 0 ? $lossVien : '0'?>"
@@ -254,7 +343,6 @@
                                         <?php } ?>
                                     </td>
                                     <?php } ?>
-                                    <?php } ?>
                                     <td class="text-center">
                                         <a class="btn btn-link text-danger p-0"
                                             data-action="click"
@@ -268,7 +356,7 @@
                                 </tr>
                                 <?php } } else { ?>
                                 <tr>
-                                    <td colspan="<?=$is_convert ? '9' : ($allow_loss ? '10' : '8')?>" class="text-center py-5 text-secondary">
+                                    <td colspan="<?=$allow_loss ? '11' : '9'?>" class="text-center py-5 text-secondary">
                                         <i class="ti ti-search fs-1 d-block text-muted mb-2 opacity-50"></i>
                                         <div class="fw-semibold text-body mb-1"><?=$jatbi->lang("Chưa có dòng ngọc nào được chọn")?></div>
                                         <div class="small text-muted"><?=$jatbi->lang("Gõ mã lô (#LO-...) vào ô tìm kiếm ở trên để chọn ngọc cần chuyển.")?></div>
@@ -278,16 +366,14 @@
                             </tbody>
                             <tfoot>
                                 <tr class="fw-bold table-light">
-                                    <td colspan="3" class="text-end text-secondary"><?=$jatbi->lang("Tổng cộng")?>:</td>
-                                    <td class="text-end text-body"><?=number_format($sum_stock_kg, 2)?> kg</td>
+                                    <td colspan="4" class="text-end text-secondary"><?=$jatbi->lang("Tổng cộng")?>:</td>
+                                    <td class="text-end text-body"><?php if ($sum_stock_gr > 0.0001 && $sum_stock_kg > 0.0001) { ?><?=number_format($sum_stock_kg, 2)?> kg <?=$jatbi->lang("+")?> <?=number_format($sum_stock_gr, 2)?> gr<?php } elseif ($sum_stock_gr > 0.0001) { ?><?=number_format($sum_stock_gr, 2)?> gr<?php } else { ?><?=number_format($sum_stock_kg, 2)?> kg<?php } ?></td>
                                     <td class="text-end text-body"><?=$sum_stock_vien > 0 ? (number_format($sum_stock_vien) . ' viên') : '-'?></td>
-                                    <td class="text-end text-primary fs-6"><?=number_format($sum_trans_kg, 2)?> kg</td>
-                                    <td class="text-end text-primary fs-6"><?=$is_convert ? ($sum_convert > 0 ? (number_format($sum_convert) . ' viên') : '-') : ($sum_trans_vien > 0 ? (number_format($sum_trans_vien) . ' viên') : '-')?></td>
+                                    <td class="text-end text-primary fs-6"><?php if ($sum_trans_gr > 0.0001 && $sum_trans_kg > 0.0001) { ?><?=number_format($sum_trans_kg, 2)?> kg <?=$jatbi->lang("+")?> <?=number_format($sum_trans_gr, 2)?> gr<?php } elseif ($sum_trans_gr > 0.0001) { ?><?=number_format($sum_trans_gr, 2)?> gr<?php } else { ?><?=number_format($sum_trans_kg, 2)?> kg<?php } ?></td>
+                                    <td class="text-end text-primary fs-6"><?=$sum_trans_vien > 0 ? (number_format($sum_trans_vien) . ' viên') : '-'?></td>
                                     <?php if ($allow_loss) { ?>
-                                    <td class="text-end text-danger fs-6"><?=number_format($sum_loss_kg, 2)?> kg</td>
-                                    <?php if (!$is_convert) { ?>
+                                    <td class="text-end text-danger fs-6"><?php if ($sum_loss_gr > 0.0001 && $sum_loss_kg > 0.0001) { ?><?=number_format($sum_loss_kg, 2)?> kg <?=$jatbi->lang("+")?> <?=number_format($sum_loss_gr, 2)?> gr<?php } elseif ($sum_loss_gr > 0.0001) { ?><?=number_format($sum_loss_gr, 2)?> gr<?php } else { ?><?=number_format($sum_loss_kg, 2)?> kg<?php } ?></td>
                                     <td class="text-end text-danger fs-6"><?=$sum_loss_vien > 0 ? (number_format($sum_loss_vien) . ' viên') : '-'?></td>
-                                    <?php } ?>
                                     <?php } ?>
                                     <td></td>
                                 </tr>

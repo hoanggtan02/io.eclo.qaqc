@@ -54,6 +54,11 @@ return [
                     //     "router" => '/qaqc/pearl-unit',
                     //     "icon" => '<i class="ti ti-adjustments"></i>',
                     // ],
+                    'pearl_category' => [
+                        "name" => $jatbi->lang("Danh mục sản phẩm ngọc"),
+                        "router" => '/qaqc/pearl-category',
+                        "icon" => '<i class="ti ti-tags"></i>',
+                    ],
                 ],
                 "main" => 'false',
                 "permission" => [
@@ -74,6 +79,8 @@ return [
                     'finish_stock.export' => $jatbi->lang("Thao tác 3 hướng xuất QAQC"),
                     'pearl_unit' => $jatbi->lang("Xem cách tính đơn vị theo loại ngọc"),
                     'pearl_unit.edit' => $jatbi->lang("Sửa cách tính đơn vị theo loại ngọc"),
+                    'pearl_category' => $jatbi->lang("Xem danh mục sản phẩm ngọc"),
+                    'pearl_category.edit' => $jatbi->lang("Thêm/sửa/xóa danh mục sản phẩm ngọc"),
                 ]
             ],
         ],

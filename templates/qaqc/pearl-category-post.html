@@ -1,0 +1,62 @@
+<div class="modal fade modal-load <?=$jatbi->ajax('load')?>" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog pt-standalone">
+        <div class="modal-content rounded-5 border-0 shadow-lg">
+            <div class="d-flex w-100 justify-content-end align-items-center position-relative">
+                <button type="button"
+                    class="btn btn-eclo position-absolute z-1 rounded-circle d-flex align-items-center justify-content-center width height top right"
+                    data-bs-dismiss="modal" aria-label="Close"
+                    style="--width:50px;--height:50px;--top:-5px;--right:-5px">
+                    <i class="ti ti-x fs-4"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold text-body mb-3">
+                    <?=$title?>
+                </h5>
+                <form method="POST" action="<?=$_SERVER['REQUEST_URI']?>">
+                    <div class="mb-3">
+                        <?=$app->component('input', [
+                        "name" => 'code',
+                        "type" => 'text',
+                        "placeholder" => $jatbi->lang("Mã danh mục (VD: VONGTAY)"),
+                        "value" => $data['code'] ?? '',
+                        "required" => 'true',
+                    ])?>
+                    </div>
+                    <div class="mb-3">
+                        <?=$app->component('input', [
+                        "name" => 'name',
+                        "type" => 'text',
+                        "placeholder" => $jatbi->lang("Tên danh mục (VD: Vòng tay)"),
+                        "value" => $data['name'] ?? '',
+                        "required" => 'true',
+                    ])?>
+                    </div>
+                    <div class="mb-3">
+                        <?=$app->component('textarea', [
+                        "name" => 'notes',
+                        "placeholder" => $jatbi->lang("Ghi chú (VD: dùng cho loại ngọc nào...)"),
+                        "value" => $data['notes'] ?? '',
+                    ])?>
+                    </div>
+                    <div class="mb-3">
+                        <?=$app->component('select',[
+                            "name" => 'status',
+                            "options" => [
+                                ['value' => 'A', 'text' => $jatbi->lang("Hoạt động")],
+                                ['value' => 'D', 'text' => $jatbi->lang("Ngưng")],
+                            ],
+                            "selected" => $data['status'] ?? 'A',
+                            "placeholder" => $jatbi->lang("Trạng thái"),
+                            "required" => 'true',
+                        ])?>
+                    </div>
+
+                    <button type="submit" class="btn btn-eclo w-100 py-3 rounded-pill fw-bold"
+                        data-action="submit" data-alert="true"
+                        data-load="this"><?=$jatbi->lang("Hoàn thành")?></button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
